@@ -1,0 +1,44 @@
+---
+title: '4\. Worksheet: Software Installation'
+author: "Student Name"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: pdf_document
+---
+
+## Directions:
+This is an RMarkdown file.
+It will allow you to integrate text and R code into one file.
+Please complete parts 1 and 2 below.
+Part 3 should be left alone (it should work as needed)
+When you are done, **Knit** the text and code into a PDF file.
+Basically, just press the **Knit** button above.
+After Knitting, please submit via GitHub. 
+Review **2. Reproducible Science with Git and GitHub** Handout if needed.
+It is due on **January 16^th^, 2019 at 12:00 (noon)**.  
+
+## Assignment:
+
+1. Edit your name in the *author* line above (line 3)
+
+2. Print a message from R using the `print` command (practic in console)
+
+    E.g., Print "*Hello, World!*"
+```{r}
+
+
+```
+
+3. Tell us about your system (just leave this part alone and it will do magic)
+
+**Do Not Modify This Part**
+
+```{r}
+info <- unname(c(Sys.info()[6],
+          .Platform$OS.type,
+          Sys.info()[1:2],
+          R.version.string,
+          .Platform$GUI,
+          system("git --version", intern = TRUE)))
+info
+```
+
