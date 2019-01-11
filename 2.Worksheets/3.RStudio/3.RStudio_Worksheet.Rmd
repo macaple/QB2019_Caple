@@ -1,6 +1,6 @@
 ---
 title: '3\. Worksheet: Basic R'
-author: "Student Name; Z620: Quantitative Biodiversity, Indiana University"
+author: "Mackenzie Caple; Z620: Quantitative Biodiversity, Indiana University"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: pdf_document
 geometry: margin=2.54cm
@@ -48,9 +48,9 @@ In the R code chunk below, please provide the code to:
 3) set your working directory to your '3.RStudio' folder. 
 
 ```{r}
-
-
-
+rm(list=ls())
+getwd()
+setwd("~/GitHub/QB2019_Caple/2.Worksheets/3.RStudio")
 ```
 
 ## 3) USING R AS A CALCULATOR
@@ -64,10 +64,17 @@ Feel free to reference the **1. Introduction to version control and computing to
 4) the log (base e) of your favorite number.
 
 ```{r}
+#1)
+5^3
 
+#2)
+pi*2^2
 
+#3)
+sqrt(2)*sin(pi/4)
 
-
+#4)
+log(3)
 ```
 
 ## 4) WORKING WITH VECTORS
@@ -82,9 +89,9 @@ In the R-code chunk below, do the following:
 3) Add `x` and `w` and divide by 15.
 
 ```{r}
-
-
-
+x = c(1, 1, 2, 3, 5)
+w = x*14
+(x+w)/15
 ```
 
 Now, do the following: 
@@ -93,9 +100,9 @@ Now, do the following:
 3) Use the combine function to create one more vector, `d` that consists of any three elements from `w` and any four elements of `k`.
 
 ```{r}
-
-
-
+k = c(2, 2, 4, 6, 10)
+k*x
+d = c(w[2:4], k[1:4])
 ```
 
 ### Summary Statistics of Vectors
@@ -105,18 +112,18 @@ In the R-code chunk below, calculate the **summary statistics** (i.e., maximum, 
 ```{r}
 v <- c(16.4, 16.0, 10.1, 16.8, 20.5, NA, 20.2, 13.1, 24.8, 20.2, 25.0, 20.5, 30.5, 31.4, 27.1)
 
+sem = function(x){
+  sd(na.omit(x))/sqrt(length(na.omit(x)))
+}
 
-
-
-
-
-
-
-
-
-
-
-
+max(na.omit(v))
+min(na.omit(v))
+sum(na.omit(v))
+mean(na.omit(v))
+median(na.omit(v))
+var(na.omit(v))
+sd(na.omit(v))
+sem(v)
 ```
 
 ## 5) WORKING WITH MATRICES
@@ -127,18 +134,19 @@ Both columns should consist of random numbers.
 Make the mean of the first column equal to 8 with a standard deviation of 2 and the mean of the second column equal to 25 with a standard deviation of 10.
 
 ```{r}
-
-
-
-
-
+j = c(rnorm(5,8,2))
+z = c(rnorm(5,25,10))
+k = cbind(j,z)
 ```
 
 ***Question 1***: What does the `rnorm` function do? 
 What do the arguments in this function specify? 
 Remember to use `help()` or type `?rnorm`.
 
-> Answer 1:
+> Answer 1: 'rnorm' generates random values that follow a normal distribution-- but default, 
+> they follow a distribution with mean = 0 and standard deviation = 1. The three arguments
+> are: the number of random numbers generated, the mean of the distribution, and the standard
+> deviation of the distribution.
 
 
 In the R code chunk below, do the following: 
@@ -147,15 +155,16 @@ In the R code chunk below, do the following:
 3) Determine the dimensions of the transposed matrix.
 
 ```{r}
+m = read.table("data/matrix.txt", header = TRUE)
 
-
-
+n = t(m)
+dim(n)
 ```
 
 
 ***Question 2***: What are the dimensions of the matrix you just transposed?
 
-> Answer 2:
+> Answer 2: 5 rows and 9 columns
 
 
 ###Indexing a Matrix
