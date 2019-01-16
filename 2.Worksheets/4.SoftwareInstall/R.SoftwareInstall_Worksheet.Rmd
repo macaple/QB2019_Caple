@@ -1,6 +1,6 @@
 ---
 title: '4\. Worksheet: Software Installation'
-author: "Student Name"
+author: "Mackenzie Caple"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: pdf_document
 ---
@@ -24,8 +24,7 @@ It is due on **January 16^th^, 2019 at 12:00 (noon)**.
 
     E.g., Print "*Hello, World!*"
 ```{r}
-
-
+print("Hello, World!")
 ```
 
 3. Tell us about your system (just leave this part alone and it will do magic)
