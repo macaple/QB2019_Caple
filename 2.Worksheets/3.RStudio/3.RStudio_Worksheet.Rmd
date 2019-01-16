@@ -143,10 +143,7 @@ k = cbind(j,z)
 What do the arguments in this function specify? 
 Remember to use `help()` or type `?rnorm`.
 
-> Answer 1: 'rnorm' generates random values that follow a normal distribution-- but default, 
-> they follow a distribution with mean = 0 and standard deviation = 1. The three arguments
-> are: the number of random numbers generated, the mean of the distribution, and the standard
-> deviation of the distribution.
+> Answer 1: 'rnorm' generates random values that follow a normal distribution-- but default, they follow a distribution with mean = 0 and standard deviation = 1. The three arguments are: the number of random numbers generated, the mean of the distribution, and the standard deviation of the distribution.
 
 
 In the R code chunk below, do the following: 
@@ -174,8 +171,8 @@ In the R code chunk below, do the following:
 2) Remove the last row of matrix `m`.
 
 ```{r}
-
-
+m1 = m[ ,c(1:2,4:5)]
+m2 = m[1:8, ]
 ```
 
 ## 6) BASIC DATA VISUALIZATION AND STATISTICAL ANALYSIS
@@ -186,8 +183,8 @@ In the R code chunk below, do the following:
 2) Display the structure of this data set.
 
 ```{r}
-
-
+meso = read.table("data/zoop_nuts.txt", sep = "\t", header = TRUE)
+str(meso)
 ```
 
 ### Correlation
@@ -198,15 +195,16 @@ In the R-code chunk below, do the following:
 3) Conduct a simple **Pearson's correlation** analysis.
 
 ```{r}
-
-
+meso.num = meso[ ,3:8]
+pairs(meso.num)
+cor1 = cor(meso.num)
+print(cor1, digits = 3)
 ```
 
 
 ***Question 3***: Describe some of the general features based on the visualization and correlation analysis above?
 
-> Answer 3:
-
+> Answer 3: Most nutrient pairs (combinations of TP, TN, SRP, TIN) have positive correlations of somewhat high magnitudes, meaning that these nutrients (total phosphorus, total nitrogen, soluble reactive phosphorus, and total inorganic nutrients), tend to increase or decrease with each other. All of those nutrient levels also have positive correlations with ZP, meaning that zooplankton biomass tends to increase at higher nutrient levels. However, CHLA (chlorophyll a concentration) has negative correlations with every other variable-- although some of these correlations are weak, and none are as strong as the positive correlations between nutrients and zooplankton. Since CHLA is a proxy for algal biomass, this means that there may tend to be less algae in tanks with higher nutrients levels and higher levels of zooplankton.
 
 In the R code chunk below, do the following:
 1) Redo the correlation analysis using the `corr.test()` function in the `psych` package with the following options: method = "pearson", adjust = "BH".
@@ -214,9 +212,11 @@ In the R code chunk below, do the following:
 3) Use the print command from the handout to see the results of each correlation analysis.
 
 ```{r}
-
-
-
+require("psych")
+cor2 = corr.test(meso.num, method = "pearson", adjust = "BH")
+cor3 = corr.test(meso.num, method = "kendall", adjust = "BH")
+print(cor2, digits = 3)
+print(cor3, digits = 3)
 ```
 
 ***Question 4***: 
@@ -226,7 +226,7 @@ When should one use non-parametric methods instead of parametric methods?
 With the Pearson's method, is there evidence for false discovery rate due to multiple comparisons? 
 Why is false discovery rate important?
 
-> Answer 4: 
+> Answer 4: Yes, the results are definitely sensitive; correlation values tended to be lower in magnitude with a non-parametric method, and p-values tended to increase. Some of the correlations with chlorophyll a concentration even switched sign, though the magnitude remained fairly low, and the p-values very high. In general, non-parametric methods should be used when there is no reason to think that your data follow a specific type of distribution. I would not say that this data shows evidence for false discovery rate using the Pearson's method; although several p-values increased when corrected for multiple comparisons, they were already very large-- no p-value changed from a significant to an insignificant level. However, false discovery rate is important to correct for, because when making a large number of comparisions, it is expected that some relationships will appear to be significantly correlated due to chance alone.
 
 ### Linear Regression
 
@@ -236,22 +236,28 @@ In the R code chunk below, do the following:
 3) Produce a plot of this regression analysis including the following: categorically labeled points, the predicted regression line with 95% confidence intervals, and the appropriate axis labels.
 
 ```{r}
-
-
-
-
-
-
-
+fitreg = lm(ZP ~ TN, data = meso)
+summary(fitreg)
+plot(meso$TN, meso$ZP, ylim = c(0,10), xlim = c(500,5000), 
+     xlab = expression(paste("Total Nitrogen (", mu, "g/L)")), 
+     ylab = "Zooplankton Biomass (mg/L)", las = 1)
+text(meso$TN, meso$ZP, meso$NUTS, pos = 3, cex = 0.8)
+newTN = seq(min(meso$TN), max(meso$TN), 10)
+regline = predict(fitreg, newdata = data.frame(TN = newTN))
+lines(newTN, regline)
+conf95 = predict(fitreg, newdata = data.frame(TN = newTN), 
+                 interval = c("confidence"), level = 0.95, type = "response")
+matlines(newTN, conf95[ , c("lwr", "upr")], type = "l", lty = 2, lwd = 1, col = "black")
 ```
 
 ***Question 5***: Interpret the results from the regression model
 
-> Answer 5:
+> Answer 5: Zooplankton biomass is highly significantly correlated with total nitrogen concentration, with a p-value of 1.91x10^-5. The residuals and square-root-standardized residuals seem to be reasonably randomly distributed around zero, the normal QQ plot is reasonably linear, and there are no points with a Cook's distance above (or even nearing) |1|, so a linear regression seems to be a reasonable way to analyze this relationship.
 
 
 ```{r}
-
+par(mfrow = c(2,2), mar = c(5.1, 4.1, 4.1, 2.1))
+plot(fitreg)
 ```
 
 ### Analysis of Variance (ANOVA)
@@ -264,13 +270,23 @@ Using the R code chunk below, do the following:
 
 
 ```{r}
+NUTS = factor(meso$NUTS, levels = c('L', 'M', 'H'))
+zp.means = tapply(meso$ZP, NUTS, mean)
 
+sem = function(x){
+  sd(na.omit(x))/sqrt(length(na.omit(x)))
+}
 
+zp.sem = tapply(meso$ZP, NUTS, sem)
+bp = barplot(zp.means, ylim = c(0, round(max(meso$ZP), digits = 0)), 
+             pch = 15, cex = 1.25, las = 1, cex.lab = 1.4, cex.axis = 1.25, 
+             xlab = "nutrient supply", ylab = "zooplankton biomass (mg/L)", 
+             names.arg = c("low", "medium", "high"))
+arrows(x0 = bp, y0 = zp.means, y1 = zp.means - zp.sem, angle = 90, length = 0.1, lwd = 1)
+arrows(x0 = bp, y0 = zp.means, y1 = zp.means + zp.sem, angle = 90, length = 0.1, lwd = 1)
 
-
-
-
-
+fitanova = aov(ZP ~ NUTS, data = meso)
+summary(fitanova)
 ```
 
 ## SYNTHESIS: SITE-BY-SPECIES MATRIX
@@ -296,16 +312,27 @@ The remaining columns of data refer to the biomass (µg/L) of different zooplank
   + DLUM = *Daphnia lumholtzi*
   
   + CHYD = *Chydorus* sp. 
+  
+  
 
 ***Question 6***: With the visualization and statistical tools that we learned about in the **3. RStudio** handout, use the site-by-species matrix to assess whether and how different zooplankton taxa were responsible for the total biomass (ZP) response to nutrient enrichment. 
 Describe what you learned below in the "Answer" section and include appropriate code in the R chunk.
 
 ```{r}
+zoops = read.table("data/zoops.txt", sep = "\t", header = TRUE)
+str(zoops)
 
+#combining the two dataframes based on tank ID
+zp.all = merge(zoops, meso, by = "TANK")
+sbsmat = zp.all[c(18,3:11)]
 
-
-
+#simple pairwise comparisons and Pearson's correlations
+pairs(sbsmat)
+cor.zp = cor(sbsmat)
+cor.zp
 ```
+
+> Answer 6: I created a site-by-species matrix by merging the two dataframes based on tank ID, and then indexed the new dataframe so it only included the ZP data and the biomass of each taxa. I ran a simple Pearson's correlation (ignoring all but the first row/column of the output) to see how each taxon contributed to total biomass. The correlations show that most of the positive response of zooplankton biomass to nutrient increase is driven by just one taxon, CHYD, which is very highly correlated with ZP. The taxon SIMO also contributed to the positive trend. All other taxa had negative correlations with total zooplankton biomass, though they were fairly weak correlations.
 
 ## SUBMITTING YOUR WORKSHEET
 Use Knitr to create a PDF of your completed **3.RStudio_Worksheet.Rmd** document, push the repo to GitHub, and create a pull request.
