@@ -1,6 +1,6 @@
 ---
-title: '5\. Worksheet: Alpha Diversity'
-author: "Student Name; Z620: Quantitative Biodiversity, Indiana University"
+title: "Assignment: Local (alpha) Diversity"
+author: "Mackenzie Caple; Z620: Quantitative Biodiversity, Indiana University"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: pdf_document
 geometry: margin=2.54cm
@@ -36,10 +36,10 @@ In the R code chunk below, please provide the code to:
 4) Load the `vegan` R package (be sure to install first if you haven't already).
 
 ```{r}
-
-
-
-
+rm(list=ls())
+getwd()
+setwd("~/GitHub/QB2019_Caple/2.Worksheets/5.AlphaDiversity")
+require(vegan)
 ```
 
 ## 2) LOADING DATA
@@ -49,8 +49,8 @@ In the R code chunk below, do the following:
 2) Display the structure of the dataset (if the structure is long, use the `max.level = 0` argument to show the basic information).
 
 ```{r}
-
-
+data(BCI)
+str(BCI, max.level = 0)
 ```
 
 ## 3) SPECIES RICHNESS
@@ -68,17 +68,26 @@ In the R code chunk below, do the following:
 3. Compare the output of your function to the output of the `specnumber()` function in `vegan`.
 
 ```{r}
+S.obs = function(x = ""){
+  rowSums(x > 0) * 1
+}
 
-# S.obs <- function(   ){
-#   rowSums(     ) * 
-#   }
+site1 = BCI[1, ]
 
+S.obs(site1)
+specnumber(site1)
+
+S.obs(BCI[1:4, ])
 ```
 
 ***Question 1***: Does `specnumber()` from `vegan` return the same value for observed richness in `site1` as our function `S.obs`?
 What is the species richness of the first four sites (i.e., rows) of the BCI matrix?
 
-> ***Answer 1***:
+> ***Answer 1***: Yes, the two functions return the same value of observed richness.
+> Site 1: 93 species
+> Site 2: 84 species
+> Site 3: 90 species
+> Site 4: 94 species
 
 
 
@@ -91,8 +100,11 @@ In the R code chunk below, do the following:
 2. Use that function to calculate coverage for all sites in the BCI matrix.
 
 ```{r}
+C = function(x = ""){
+  1 - (rowSums(x == 1) / rowSums(x))
+}
 
-
+C(BCI)
 ```
   
 ***Question 2***: Answer the following questions about coverage:
@@ -102,13 +114,13 @@ b.  What would we conclude from Good's Coverage if $n_{i}$ equaled *N*?
 c.  What portion of taxa in `site1` was represented by singletons? 
 d.  Make some observations about coverage at the BCI plots.
 
-> ***Answer 2a***:  
+> ***Answer 2a***:  From 0 to 1
 
-> ***Answer 2b***:  
+> ***Answer 2b***:  Every species is only represented by one individual
 
-> ***Answer 2c***:  
+> ***Answer 2c***:  93.1%
 
-> ***Answer 2d***:  
+> ***Answer 2d***:  All sites have roughly (+/- ~4) 90% of species represented by singletons. 
 
 
 ### Estimated richness
