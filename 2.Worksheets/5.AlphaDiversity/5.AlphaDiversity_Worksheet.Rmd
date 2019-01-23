@@ -118,9 +118,9 @@ d.  Make some observations about coverage at the BCI plots.
 
 > ***Answer 2b***:  Every species is only represented by one individual
 
-> ***Answer 2c***:  93.1%
+> ***Answer 2c***:  7%
 
-> ***Answer 2d***:  All sites have roughly (+/- ~4) 90% of species represented by singletons. 
+> ***Answer 2d***:  All sites have roughly (+/- ~4) 10% of species represented by singletons, indicating high coverage at all sites.
 
 
 ### Estimated richness
@@ -138,12 +138,13 @@ In the R code chunk below, do the following:
 5. Calculate coverage of that site
 
 ```{r}
+soilbac = read.table("data/soilbac.txt", sep = "\t", header = TRUE, row.names = 1)
+soilbac.t = as.data.frame(t(soilbac))
+soilbac1 = soilbac.t[1,]
 
-
-
-
-
-
+S.obs(soilbac1)
+N = rowSums(soilbac1)
+C(soilbac1)
 ```
 
 ***Question 3***: Answer the following questions about the soil bacterial dataset. 
@@ -152,11 +153,11 @@ a.  How many sequences did we recover from the sample `soilbac1`, i.e. *N*?
 b.  What is the observed richness of `soilbac1`? 
 c.  How does coverage compare between the BCI sample (`site1`) and the KBS sample (`soilbac1`)?
 
-> ***Answer 3a***:  
+> ***Answer 3a***: 2119
 
-> ***Answer 3b***: 
+> ***Answer 3b***: 1074
 
-> ***Answer 3c***:  
+> ***Answer 3c***: Coverage is significantly higher in the KBS sample
 
 
 ### Richness estimators
@@ -172,19 +173,50 @@ In the R code chunk below, do the following:
 4. Use these functions to estimate richness at `site1` and `soilbac1`. 
 
 ```{r}
+S.chao1 = function(x = ""){
+  S.obs(x) + (sum(x == 1)^2) / (2 * sum(x == 2))
+}
 
+S.chao2 = function(site = "", SbyS = ""){
+  SbyS = as.data.frame(SbyS)
+  x = SbyS[site, ]
+  SbyS.pa = (SbyS > 0) * 1             # convert the SbyS to prescence/absence
+  Q1 = sum(colSums(SbyS.pa) == 1)      # species obs. once
+  Q2 = sum(colSums(SbyS.pa) == 2)      # species obs. twice
+  S.chao2 = S.obs(x) + (Q1^2)/(2*Q2)
+  return(S.chao2)
+}
 
+S.ace = function(x = "", thresh = 10){
+  x = x[x>0]                           # excludes 0-abundance taxa
+  S.abund = length(which(x > thresh))  # richness of abundant taxa
+  S.rare = length(which(x <= thresh))  # richness of rare taxa
+  singlt = length(which(x == 1))       # number of singleton taxa
+  N.rare = sum(x[which(x <= thresh)])  # abundance of rare individuals
+  C.ace = 1-(singlt / N.rare)          # coverage (prop non-singlt rare inds)
+  i = c(1:thresh)                      # threshold abundance range
+  count = function(i, y){
+    length(y[y == i])
+  }
+  a.1 = sapply(i, count, x)            # number of individuals in richness i richness classes
+  f.1 = (i * (i - 1)) * a.1            # k(k-1)kf sensu Gotelli
+  G.ace = (S.rare / C.ace)*(sum(f.1) / (N.rare * (N.rare - 1)))
+  S.ace = S.abund + (S.rare / C.ace) + (singlt / C.ace) * max(G.ace, 0)
+  return(S.ace)
+}
 
+S.chao1(site1)
+S.chao2(1, BCI)
+S.ace(site1)
 
-
-
-
-
+S.chao1(soilbac1)
+S.chao2(1, soilbac.t)
+S.ace(soilbac1)
 ```
 
 ***Question 4***: What is the difference between ACE and the Chao estimators? Do the estimators give consistent results? Which one would you choose to use and why?
 
-> ***Answer 4***:
+> ***Answer 4***: The Chao estimators make estimates based on species observed once or twice within or between sites, whereas the ACE estimator uses am abundance threshold (conventionally, 10) and then creates an estimate based on this number of rare species. The estimators are reasonably consistent for the well-covered BCI data, but with the lower-coverage KBS data there are huge inconsistencies. 
 
 
 
@@ -204,12 +236,12 @@ In the R code chunk below, please do the following:
 
 
 ```{r}
-
-
-
-
-
-
+soilbac.S = S.obs(soilbac.t)
+min.N = min(rowSums(soilbac.t))
+S.rarefy = rarefy(x = soilbac.t, sample = min.N, se = TRUE)
+rarecurve(x = soilbac.t, step = 20, col = "blue", cex = 0.6, las = 1)
+abline(0, 1, col = 'red')
+text(1500, 1500, "1:1", pos = 2, col = 'red')
 ```
 
 
@@ -231,13 +263,12 @@ In the R code chunk below, do the following:
 4. Return the ranked vector
 
 ```{r}
-
-
-
-
-
-
-
+RAC = function(x = ""){
+  x = as.vector(x)
+  x.ab = x[x > 0]
+  x.ab.ranked = x.ab[order(x.ab, decreasing = TRUE)]
+  return(x.ab.ranked)
+}
 ```
 
 Now, let's examine the RAC for `site1` of the BCI data set.
@@ -249,17 +280,28 @@ In the R code chunk below, do the following:
 2. Label the x-axis "Rank in abundance" and the y-axis "log(abundance)"
 
 ```{r}
+plot.new()
+site1 = BCI[1, ]
 
+rac = RAC(x = site1)
+ranks = as.vector(seq(1, length(rac)))
+opar = par(no.readonly = TRUE)                         # saves default plot parameters
+par(mar = c(5.1, 5.1, 4.1, 2.1))                       # new settings for par
+plot(ranks, log(rac), type = 'p', axes = F,            # plots w/o axes
+     xlab = "Rank in abundance", ylab = "Abundance", 
+     las = 1, cex.lab = 1.4, cex.axis = 1.25)
 
+box()                                                  # manually adds border
+axis(side = 1, labels = T, cex.axis = 1.25)            # manually adds x-axis
+axis(side = 2, las = 1, cex.axis = 1.25,               # manually adds y-axis
+     labels = c(1, 2, 5, 10, 20), at = log(c(1, 2, 5, 10, 20)))
 
-
-
-
+par = opar                                             # reset plotting parameters
 ```
 
 ***Question 5***: What effect does visualizing species abundance data on a log-scaled axis have on how we interpret evenness in the RAC?
 
-> ***Answer 5***:
+> ***Answer 5***: In general, sites have a few abundant taxa and many rare taxa; log-transforming the abundance data gives a linear shape on most ecological data.
 
 
 Now that we have visualized unevennes, it is time to quantify it using Simpson's evenness ($E_{1/D}$) and Smith and Wilson's evenness index ($E_{var}$).
@@ -273,14 +315,16 @@ In the R code chunk below, do the following:
 2. Calculate $E_{1/D}$ for `site1`.
 
 ```{r}
+SimpE = function(x = ""){
+  S = S.obs(x)
+  x = as.data.frame(x)
+  D = diversity(x, "inv")
+  E = (D)/S
+  return(E)
+}
 
-
-
-
-
-
-
-
+site1 = BCI[1, ]
+SimpE(site1)
 ```
 
 ### Smith and Wilson's evenness index ($E_{var}$)
@@ -294,18 +338,19 @@ In the R code chunk below, please do the following:
 3. Compare $E_{1/D}$ and $E_{var}$.
 
 ```{r}
+Evar = function(x){
+  x = as.vector(x[x > 0])
+  1- (2/pi) * atan(var(log(x)))
+}
 
-
-
-
-
-
+Evar(site1)
+SimpE(site1)
 ```
 
 ***Question 6***: Compare estimates of evenness for `site1` of BCI using $E_{1/D}$ and $E_{var}$.
 Do they agree? If so, why? If not, why? What can you infer from the results.
 
-> ***Answer 6***:
+> ***Answer 6***: They are somewhat similar, but they are not the same; the Smith and Wilson's index shows higher eveness than Simpson's, because it is calculated to decrease bias towards more abundant species.
 
 
 ##5) INTEGRATING RICHNESS AND EVENNESS: DIVERSITY METRICS
@@ -323,15 +368,19 @@ In the R code chunk below, please do the following:
 2. Compare this estimate with the output of `vegan`'s diversity function using method = "shannon".
 
 ```{r}
+ShanH = function(x = ""){
+  H = 0
+  for (n_i in x){
+    if(n_i > 0){
+      p = n_i / sum(x)
+      H = H - p*log(p)
+    }
+  }
+  return(H)
+}
 
-
-
-
-
-
-
-
-
+ShanH(site1)
+diversity(site1, index = "shannon")
 ```
 
 ### Simpson's diversity (or dominance)
@@ -345,25 +394,29 @@ In the R code chunk below, please do the following:
 2. Compare this estimate with the output of `vegan's` diversity function using method = "simp".
 
 ```{r}
+SimpD = function(x = ""){
+  D = 0
+  N = sum(x)
+  for (n_i in x){
+    D = D + (n_i^2)/(N^2)
+  }
+  return(D)
+}
 
+D.inv = 1/SimpD(site1)
+D.sub = 1-SimpD(site1)
 
+D.inv
+D.sub
 
-
-
-
-
-
-
-
-
-
-
+diversity(site1, "inv")
+diversity(site1, "simp")
 ```
 
 ***Question 7***: Compare estimates of evenness for `site1` of BCI using $E_{H'}$ and $E_{var}$.
 Do they agree? If so, why? If not, why? What can you infer from the results.
 
-> ***Answer 7***:
+> ***Answer 7***: I'm not sure how to compare these, since $E_{var}$ is measuring evenness and $E_{H'}$ is measuring diversity, which combines evenness and richness. 
 
 ### Fisher's $\boldsymbol\alpha$
 
@@ -374,24 +427,17 @@ In the R code chunk below, please do the following:
 2. Calculate Fisher's $\boldsymbol\alpha$ for `site1` of BCI.
 
 ```{r}
+rac = as.vector(site1[site1 > 0])
+invD = diversity(rac, "inv")
+invD
 
-
-
-
-
-
-
-
-
-
-
-
-
+Fisher = fisher.alpha(rac)
+Fisher
 ```
 
 ***Question 8***: How is Fisher's $\boldsymbol\alpha$ different from $E_{H'}$ and $E_{var}$? What does Fisher's $\boldsymbol\alpha$ take into account that $E_{H'}$ and $E_{var}$ do not?
 
-> ***Answer 8***:
+> ***Answer 8***: Fisher's alpha accounts for richness, which both Simpson's and Smith and Wilson's measures of evenness do not.
 
 ##6) MOVING BEYOND UNIVARIATE METRICS OF $\alpha$ DIVERSITY
 
@@ -415,11 +461,11 @@ In the R code chunk below, please do the following:
 3. Plot the results of the `radfit()` function using the code provided in the handout.
 
 ```{r}
+RACresults = radfit(site1)
+RACresults
 
-
-
-
-
+plot.new()
+plot(RACresults, las = 1, cex.lab = 1.4, cex.axis = 1.25)
 ```
 
 
@@ -427,22 +473,22 @@ In the R code chunk below, please do the following:
 a) Based on the output of `radfit()` and plotting above, discuss which model best fits our rank-abundance curve for `site1`?
 b) Can we make any inferences about the forces, processes, and/or mechanisms influencing the structure of our system, e.g., an ecological community?
 
-> ***Answer 9a***:  
-> ***Answer 9b***:
+> ***Answer 9a***:  Mandelbrot
+> ***Answer 9b***: We can infer that there ARE forces/mechanisms acting to structure this system, because the data was not well-described by the null model-- but without knowing more, we cannot make inferences about what those forces/mechanisms actually are.
 
 
 ***Question 10***: Answer the following questions about the preemption model:
 a.  What does the preemption model assume about the relationship between total abundance (*N*) and total resources that can be preempted?
 b.  Why does the niche preemption model look like a straight line in the RAD plot?
 
-> ***Answer 10a***:  
-> ***Answer 10b***:
+> ***Answer 10a***:  It assumes that N is determined only by total resources, and that each additional species partitions the resources in a predictable and consistent way. To be honest, I do not entirely understand this, even after reading a bit about it.
+> ***Answer 10b***: It has been log-transformed, so that the constant rate of decay appears to be a constant rate of decrease
 
 
 
 ***Question 11***: Why is it important to account for the number of parameters a model uses when judging how well it explains a given set of data?
 
-> ***Answer 11***:
+> ***Answer 11***: You can get any model to fit any data if you add enough parameters, so a large number of parameters could mean that the model has been overworked and is only fitting artificially, rather than being a good explanation for the shape of the data.
 
 
 ## SYNTHESIS
@@ -450,10 +496,33 @@ b.  Why does the niche preemption model look like a straight line in the RAD plo
 1.  As stated by Magurran (2004) the  ${D = } \sum p_i^2$ derivation of Simpson's Diversity only applies to communities of infinite size. For anything but an infinitely large community, Simpson's Diversity index is calculated as ${D = } \sum \frac{n_i(n_i -1)} {N(N-1)}$. 
 Assuming a finite community, calculate Simpson's D, 1 - D, and Simpson's inverse (i.e. 1/D) for `site 1` of the BCI site-by-species matrix. 
 
+```{r}
+SimpDf = function(x = ""){
+  D = 0
+  N = sum(x)
+  for (n_i in x){
+    D = D + (n_i*(n_i-1)) / (N*(N-1))
+  }
+  return(D)
+}
+
+SimpDf(site1)
+Df.inv = 1/SimpDf(site1)
+Df.sub = 1-SimpDf(site1)
+```
+
+
 2.  Along with the rank-abundance curve (RAC), another way to visualize the distribution of abundance among species is with a histogram (a.k.a., frequency distribution) that shows the frequency of different abundance classes.
 For example, in a given sample, there may be 10 species represented by a single individual, 8 species with two individuals, 4 species with three individuals, and so on.
 In fact, the rank-abundance curve and the frequency distribution are the two most common ways to visualize the species-abundance distribution (SAD) and to test species abundance models and biodiversity theories.
 To address this homework question, use the R function **hist()** to plot the frequency distribution for `site 1` of the BCI site-by-species matrix, and describe the general pattern you see.
+
+```{r}
+site1.vec = as.vector(site1[1, ], mode = "numeric")
+hist(site1.vec, breaks = seq(0, 25, by=1))
+```
+
+> There are many, many species that are not represented by any individuals. There are fewer species with 1-5 individuals, then only a handful of species with 6 or more individuals. The dramatic dropoff between the number of species with 0 and 1 individuals representing them is a good demonstration of why this kind of data is often better visualized when log-transformed; this histogram is a great visualization of actual species distributions, but if you want to be able to read more than the number of unrepresented species with any accuracy, a log-transformed graph will be more useful.
 
 3.  We asked you to find a biodiversity dataset with your partner.
 This data could be one of your own or it could be something that you obtained from the literature. 
@@ -461,6 +530,19 @@ Load that dataset.
 How many sites are there?
 How many species are there in the entire site-by-species matrix?
 Any other interesting observations based on what you learned this week?
+
+```{r}
+SpeciesbySite = read.table("~/GitHub/QB2019_Caple/data_from_brianna.csv", header = TRUE, sep = ",")
+species = SpeciesbySite[ ,1]
+SitebySpecies = as.data.frame(t(SpeciesbySite[ ,-1]))
+colnames(SitebySpecies) = species
+
+Site.richness = S.obs(SitebySpecies)
+summary(Site.richness)
+```
+
+> There are 20 sites and 302 species.
+> This is a presence/absence dataset, so I will not be able to compute scores for coverage or evenness. The "S.obs" function that we wrote shows that the species richness of the sites ranges from 21 to 97 species, with a mean of 47.75 species. 
 
 ## SUBMITTING YOUR ASSIGNMENT
 Use Knitr to create a PDF of your completed alpha_assignment.Rmd document, push it to GitHub, and create a pull request.
