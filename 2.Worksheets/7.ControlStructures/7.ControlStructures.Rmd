@@ -1,0 +1,89 @@
+---
+title: "7. Control Structures"
+output: html_document
+---
+
+1) Introduction to Control Structures
+
+A. 'If, Else' Logical Tests
+
+```{r}
+x = sample(1:15, size = 1)
+
+if(x <= 10) {
+  paste("x is", x, "and is less than, or equal to, 10")
+} else{
+  paste("x is", x, "and is greater than 10")
+}
+
+x = sample(1:15, size = 1)
+
+if(x==10) {
+  paste("x is", x, "and is equal to 10")
+} else if(x < 10) {
+  paste("x is", x, "and is less than 10")
+} else{
+  paste("x is", x, "and is greater than 10")
+}
+```
+
+B. For-Loops
+
+```{r}
+for(i in 1:10) {
+  print(i)
+}
+
+x = c("apples", "oranges", "bananas", "strawberries")  # x is a vector of fruit names
+
+for(i in x) {
+  print(i)
+}
+
+# a for-loop can iterate over any type of vector
+for(i in seq(x)) {
+  print(x[i])
+}
+
+# for-loops can also transform vectors
+for(i in seq(x)) {
+  len = nchar(x[i])
+}
+
+len = ""
+for(i in seq(x)) {
+  len[i] = nchar(x[i])
+}
+print(len)
+
+# can use 'apply' functions for many of the same uses; they are usually much faster
+len = sapply(x, nchar)
+# the output of saaply is a "named int", but this can easily be coerced to a vector
+len = as.vector(len)
+print(len)
+```
+
+C. Combining control structures: 'for' and 'if'
+
+```{r}
+for(i in 1:10) {
+  if(i %% 3 == 0) {
+    print(i)
+  }
+}
+```
+
+D. While loops
+
+```{r}
+i = 1
+while(i < 10) {
+  print(i)
+  i = i + 1
+}
+```
+
+
+2) Applying Control Structures to Diversity Data
+
+A. Statistical Distributions
