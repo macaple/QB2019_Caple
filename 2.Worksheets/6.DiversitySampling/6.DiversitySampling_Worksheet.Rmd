@@ -1,6 +1,6 @@
 ---
 title: '6\. Worksheet: Diversity Sampling'
-author: "Student Name; Z620: Quantitative Biodiversity, Indiana University"
+author: "Mackenzie Caple; Z620: Quantitative Biodiversity, Indiana University"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: pdf_document
 geometry: margin=2.54cm
@@ -38,16 +38,47 @@ Create one (and only one, although it can have multiple panels) *publication qua
 Make sure to annotate your code using # symbols so others (including instructors) understand what you have done and why you have done it. 
 
 ```{r}
+# clear environment, set working directory, require vegan package
+rm(list=ls())
+getwd()
+setwd("~/GitHub/QB2019_Caple/2.Worksheets/6.DiversitySampling")
+require(vegan)
 
+# load population data
+source <- read.table("JellyBeans.Source.txt", sep = "\t", header = TRUE, row.names = 1)
+# create vector of species abundances in source population
+source.abund <- source[,"Count"]
 
+# load sample data
+sample <- read.table("JellyBeans.txt", sep = "\t", header = TRUE)
 
+# filter data to create separate tables for each sample
+sample.a <- subset(sample, Group == "A")
+sample.b <- subset(sample, Group == "B")
 
+# create vectors of species abundances in each sample
+sample.a.abund <- colSums(Filter(is.numeric, sample.a))
+sample.b.abund <- colSums(Filter(is.numeric, sample.b))
+
+# generate RAC using vegan
+RAC.source <- rad.lognormal(source.abund)
+RAC.sample.a <- rad.lognormal(sample.a.abund)
+RAC.sample.b <- rad.lognormal(sample.b.abund)
+
+# plot all three RACs on the same figure
+plot.new()
+par(mfrow = c(1,3))
+plot(RAC.source, las = 1, cex.lab = 1.4, cex.axis = 1.25, xlim = c(1, 30), main = "Source community")
+plot(RAC.sample.a, las = 1, cex.lab = 1.4, cex.axis = 1.25, xlim = c(1, 30), main = "Subcommunity A")
+plot(RAC.sample.b, las = 1, cex.lab = 1.4, cex.axis = 1.25, xlim = c(1, 30), main = "Subcommunity B")
 ```
 
 ## 3) Figure caption 
 
 Write an informative yet succicnt (~5 sentences) caption that creates a "stand-alone" figure. 
 Take a peek at figures and figure captions in a paper published in your favorite journal for inspiration.
+
+> Figure 1: Rank abundance curves of the source population and two sample subcommunities. Although the population underwent a vicariance event prior to sampling, both of the two subcommunity samples have extremely similar RACs to the source population. Subcommunity A had a higher maximum abundance than Subcommunity B, but this is not a substantial difference. The shape of Subcommunity B's RAC is less closely matched to the source population's than Subcommunity A, but again, this difference is quite small. Together, this indicates that after the vicariance event the two subcommunities did not differ substantially from each other or from the source population.
 
 ## SUBMITTING YOUR ASSIGNMENT
 Use Knitr to create a PDF of your completed 6.DiversisitySampling_Worksheet.Rmd document, push it to GitHub, and create a pull request.

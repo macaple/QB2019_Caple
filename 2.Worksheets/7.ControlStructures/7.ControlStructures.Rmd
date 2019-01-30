@@ -1,0 +1,251 @@
+---
+title: "7. Control Structures"
+output: html_document
+---
+
+1) Introduction to Control Structures
+
+A. 'If, Else' Logical Tests
+
+```{r}
+x = sample(1:15, size = 1)
+
+if(x <= 10) {
+  paste("x is", x, "and is less than, or equal to, 10")
+} else{
+  paste("x is", x, "and is greater than 10")
+}
+
+x = sample(1:15, size = 1)
+
+if(x==10) {
+  paste("x is", x, "and is equal to 10")
+} else if(x < 10) {
+  paste("x is", x, "and is less than 10")
+} else{
+  paste("x is", x, "and is greater than 10")
+}
+```
+
+B. For-Loops
+
+```{r}
+for(i in 1:10) {
+  print(i)
+}
+
+x = c("apples", "oranges", "bananas", "strawberries")  # x is a vector of fruit names
+
+for(i in x) {
+  print(i)
+}
+
+# a for-loop can iterate over any type of vector
+for(i in seq(x)) {
+  print(x[i])
+}
+
+# for-loops can also transform vectors
+for(i in seq(x)) {
+  len = nchar(x[i])
+}
+
+len = ""
+for(i in seq(x)) {
+  len[i] = nchar(x[i])
+}
+print(len)
+
+# can use 'apply' functions for many of the same uses; they are usually much faster
+len = sapply(x, nchar)
+# the output of saaply is a "named int", but this can easily be coerced to a vector
+len = as.vector(len)
+print(len)
+```
+
+C. Combining control structures: 'for' and 'if'
+
+```{r}
+for(i in 1:10) {
+  if(i %% 3 == 0) {
+    print(i)
+  }
+}
+```
+
+D. While loops
+
+```{r}
+i = 1
+while(i < 10) {
+  print(i)
+  i = i + 1
+}
+```
+
+
+2) Applying Control Structures to Diversity Data
+
+B. Generating the Source Community
+
+```{r}
+# clear the environment
+rm(list=ls())
+
+# for reproducible results we will set the seed
+set.seed(6)
+
+# draw 20 random numbers from log-normal distribution with a mean of 5 (log scale)
+jelly.jar = rlnorm(n = 20, meanlog = 5)
+
+# force numbers to integers
+jelly.jar = as.integer(jelly.jar)
+
+# generate and plot the rank-abundance curve
+require(vegan)
+RACresults = rad.lognormal(jelly.jar)
+plot(RACresults, las = 1, cex.lab = 1.4, cex.axis = 1.25)
+```
+
+B. Sampling the Source Community
+
+```{r}
+sample.community = function(x,n){
+  # write out an explicit vector of the community
+  all.individuals = rep(seq(x), x)
+  
+  # take n samples from the community
+  survey = sample(all.individuals, n)
+  
+  # prepare vector of species with 0 in each bin
+  survey.sum = rep(0, length(x))
+  
+  # add 1 to species bin each time an individual of that species was sampled
+  for(i in survey){
+    survey.sum[i] = survey.sum[i] + 1
+  }
+  return(survey.sum)
+}
+
+# set seed
+set.seed(3)
+
+# sample using our function
+sample.jelly = sample.community(x = jelly.jar, n = 100)
+
+# generate and plot RAC using vegan
+RACsample = rad.lognormal(sample.jelly)
+plot.new()
+par(mfrow = c(1, 2))
+plot(RACresults, las = 1, cex.lab = 1.4, cex.axis = 1.25, xlim = c(1, 20), main = "Source community")
+plot(RACsample, las = 1, cex.lab = 1.4, cex.axis = 1.25, xlim = c(1, 20), main = "Sample")
+```
+
+Question: how similar or different is the sample from the source community?
+
+Testing input to a function using the if statement
+
+```{r}
+# breaking a function by attempting to sample with a larger n than the community
+# sample.community(x = jelly.jar, n = (sum(jelly.jar)+1))
+
+# rewrite function with error prevention
+sample.community = function(x,n){
+  
+  # sample size cannot exceed community size
+  if(n > sum(x)) stop ("Sample size cannot exceed total size of community"
+                       )
+  # write out an explicit vector of the community
+  all.individuals = rep(seq(x), x)
+  
+  # take n samples from the community
+  survey = sample(all.individuals, n)
+  
+  # prepare vector of species with 0 in each bin
+  survey.sum = rep(0, length(x))
+  
+  # add 1 to species bin each time an individual of that species was sampled
+  for(i in survey){
+    survey.sum[i] = survey.sum[i] + 1
+  }
+  return(survey.sum)
+}
+
+sample.community(x = jelly.jar, n = (sum(jelly.jar)+1))
+```
+
+C. Estimating Richness via Resampling
+
+```{r}
+S = estimateR(sample.jelly)
+S
+
+# looking at how different indices estimate the true diversity
+
+# number of individuals per sample
+n = 100
+# number of repeated samples
+N = 1000
+# initialize matrix to store results
+repeated.S = matrix(NA, nrow = N, ncol = length(S))
+colnames(repeated.S) = names(S)
+
+# resample and store results
+for(i in seq(N)){
+  sample.jelly = sample.community(x = jelly.jar, n = n)
+  repeated.S[i,] = as.vector(estimateR(sample.jelly))
+}
+
+# plot distribution of results as histogram
+plot.new()
+par(mfrow = c(1, 3))
+# find range of all data so plots have the same x-axis
+x.lim = range(repeated.S[ , c("S.obs", "S.chao1", "S.ACE")])
+
+for(i in c("S.obs", "S.chao1", "S.ACE")){
+  hist(repeated.S[,i], prob = TRUE, cex.lab = 1.4, cex.axis = 1.25,
+       xlab = i, main = NULL, col = "grey", las = 1,
+       xlim = x.lim, breaks = seq(x.lim[1], x.lim[2]+1, by = 2))
+  # add dashed line to mark true S
+  abline(v = length(jelly.jar), lty = 2, lwd = 3)
+}
+```
+
+E. Collector's Curve
+
+```{r}
+# take a single sample of size N from the source community
+N <- 1000
+sample.jelly <- sample.community(jelly.jar, n = N)
+
+# generate vector to store results
+S.collectors <- rep(NA, N)
+
+# loop through 1:N and check S.obs for sub-samples
+for(i in 1:N){
+  sub.sample <- sample.community(sample.jelly, n = i)
+  S.collectors[i] <- estimateR(sub.sample)["S.obs"]
+}
+
+# plot results
+plot.new()
+par(mfrow = c(1, 1))
+plot(1:N, S.collectors, xlab = "Sample size", ylab = "S.obs")
+```
+
+Question: Given limited resources (time and money), what sample size would you use for estimating richness of the source community?
+
+E. Shannon's Diversity: A Mathematical for Loop
+
+```{r}
+ShanH <- function(x){
+  H = 0
+  for(i in seq(x)){
+    p_i = x[i] / sum(x)
+    H = H + p_i * log(p_i)
+  }
+  return(-H)
+}
+
+ShanH(jelly.jar)
+```
