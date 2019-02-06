@@ -70,10 +70,11 @@ In the R code chunk below, do the following:
 ```{r}
 # note, pleae do not print the dataset when submitting
 data(doubs)
-# doubs
+#doubs
 
 str(doubs, max.level = 1)
-head(doubs$env)
+#head(doubs$env)
+
 ```
 
 ***Question 1***:  Describe some of the attributes of the `doubs` dataset.  
@@ -106,14 +107,6 @@ In the R code chunk below, do the following:
 2. use this function to analyze various aspects of $\beta$-diversity in the Doubs River.  
 
 ```{r}
-beta.w <- function(site.by.species = ""){
-  SbyS.pa <- decostand(site.by.species, method = "pa") # convert to presence-absence
-  S <- ncol(SbyS.pa[ , which(colSums(SbyS.pa) > 0)])   # number of species in the region
-  a.bar <- mean(specnumber(SbyS.pa))                   # average richeness at each site
-  b.w <- round(S/a.bar, 3)                             # round to 3 decimal places
-  return(b.w)
-}
-
 beta.w <- function(site.by.species = "", sitenum1 = "", sitenum2 = "", pairwise = FALSE){
   # ONLY if we specify pairwise as TRUE, do this:
   if(pairwise == TRUE){
@@ -138,7 +131,7 @@ beta.w <- function(site.by.species = "", sitenum1 = "", sitenum2 = "", pairwise 
   
   # OTHERWISE pairwise defaults to FALSE, so do this, like before:
   else{
-    SbyS.pa <- decostand(site.by.species, methos = "pa")  # convert to presence-absence
+    SbyS.pa <- decostand(site.by.species, method = "pa")  # convert to presence-absence
     S <- ncol(SbyS.pa[ , which(colSums(SbyS.pa) > 0)])    # number of species in region
     a.bar <- mean(specnumber(SbyS.pa))                    # average richness at each site
     b.w <- round(S/a.bar, 3)
@@ -146,8 +139,10 @@ beta.w <- function(site.by.species = "", sitenum1 = "", sitenum2 = "", pairwise 
   }
 }
 
-
-
+# remember: for pairwise beta.w for turnover: 
+# 0 is min diversity (complete similarity, sites are identical), 1 is max diversity (complete disimilarity)
+beta.w(doubs$fish, "1", "2", pairwise = TRUE)
+beta.w(doubs$fish, "1", "10", pairwise = TRUE)
 
 
 
@@ -160,16 +155,16 @@ a.  Describe how local richness ($\alpha$) and turnover ($\beta$) contribute to 
 b.  Is the fish assemblage at site 1 more similar to the one at site 2 or site 10?
 c.  Using your understanding of the equation $\beta_{w} = \gamma/\alpha$, how would your interpretation of $\beta$ change if we instead defined beta additively (i.e., $\beta = \gamma - \alpha$)?
 
-> ***Answer 3a***:  
-> ***Answer 3b***:  
-> ***Answer 3c***:  
+> ***Answer 3a***:  Regional diversity is a multiplicative combination of local richness and turnover; increasing either alpha or beta diversity will also increase gamma diversity.
+> ***Answer 3b***:  Site 1 is more similar to site 2 than to site 10
+> ***Answer 3c***:  Instead of interpreting beta as the amount of turnover, I would interpret it as the additive difference between local and regional diversity; instead of being a measure from 0 to 1 of how the average site differs from the total region, it would be a numeric value describing how many fewer species the site has than the region (from 0 to the number of species in the region)
 
 ### The Resemblance Matrix
 In order to quantify $\beta$-diversity for more than two samples, we need to introduce a new primary ecological data structure: the **Resemblance Matrix**. 
 
 ***Question 4***: How do incidence- and abundance-based metrics differ in their treatment of rare species?
 
-> ***Answer 4***:  
+> ***Answer 4***:  Incidence-based metrics give equal weight to rare and abundant species, whereas abundance-based metrics give more weight to species based on how abundant they are in the community. Both approaches have pros and cons, depending on what questions are being asked. 
 
 In the R code chunk below, do the following:  
 
@@ -179,12 +174,19 @@ In the R code chunk below, do the following:
 4. construct a resemblance matrix based on Bray-Curtis Distance ("fish.db").  
 
 ```{r}
+fish <- doubs$fish
+fish <- fish[-8, ] # remove site 8 from the data (it has no observations)
 
+# calculate Jaccard
+fish.dj <- vegdist(fish, method = "jaccard", binary = TRUE)
 
+# calculate Bray-Curtis
+fish.db <- vegdist(fish, method = "bray")
 
+# calculate Sørensen
+fish.ds <- vegdist(fish, method = "bray", binary = TRUE)
 
-
-
+fish.db.full <- vegdist(fish, method = "bray", upper = TRUE, diag = TRUE) # creates a rectangular matrix, with diagonals included
 
 
 ```
@@ -194,8 +196,8 @@ In the R code chunk below, do the following:
 a. Does the resemblance matrix (`fish.db`) represent similarity or dissimilarity? What information in the resemblance matrix led you to arrive at your answer? 
 b. Compare the resemblance matrices (`fish.db` or `fish.ds`) you just created. How does the choice of the Sørensen or Bray-Curtis distance influence your interpretation of site (dis)similarity?
 
-> ***Answer 5a***:  
-> ***Answer 5b***:
+> ***Answer 5a***: This matrix measures dissimilarity; I concluded this because the diagonals are 0. Since comparing a site to itself yields a value of 0, that means that higher values mean higher levels of dissimilarity.
+> ***Answer 5b***: Since Sørensen uses presence-absence data and Bray-Curtis takes abundance into account, Sørensen gives more information about how similar the species composition at sites are; in other words, rare species are weighted more heavily, which is either useful or not depending on the question. The Bray-Curtis distance says more about the structure of the community, since it takes species abundance into account.
 
 ## 4) VISUALIZING BETA-DIVERSITY
 
@@ -208,15 +210,13 @@ In the R code chunk below, do the following:
 3. use the `levelplot()` function to create a heatmap of fish abundances in the Doubs River.
 
 ```{r}
+# define order of sites
+order <- rev(attr(fish.db, "Labels"))
 
-
-
-
-
-
-
-
-
+# plot heatmap
+levelplot(as.matrix(fish.db)[, order], aspect = "iso", col.regions = plasma,
+          xlab = "Doubs Site", ylab = "Doubs Site", scales = list(cex = 0.5),
+          main = "Bray-Curtis Distance")
 
 ```
 
@@ -228,20 +228,24 @@ In the R code chunk below, do the following:
 2. plot your cluster analysis (use either `hclust` or `heatmap.2`). 
 
 ```{r} 
+# perform cluster analysis
+fish.ward <- hclust(fish.db, method = "ward.D2")
 
+# plot cluster
+par(mar = c(1, 5, 2, 2) + 0.1)
+plot(fish.ward, main = "Doubs River Fish: Ward's Clustering",
+     ylab = "Squared Bray-Curtis Distance")
 
-
-
-
-
-
-
+# plot cluster heatmap
+gplots::heatmap.2(as.matrix(fish), distfun = function(x) vegdist(x, method = "bray"),
+                  hclustfun = function(x) hclust(x, method = "ward.D2"),
+                  col = viridis, trace = "none", density.info = "none")
 
 ```
 
 ***Question 6***: Based on cluster analyses and the introductory plots that we generated after loading the data, develop an ecological hypothesis for fish diversity the `doubs` data set? 
 
-> ***Answer 6***: 
+> ***Answer 6***: Sites are generally not primarily clustered by distance, so there must be something else happening in the stream to structure the fish community. This could be water quality, depth, flow rate, etc. One testable hypothesis is that water quality, not site number (subbing for distance downstream) is the primary driver of fish community composition.
 
 ### C.  Ordination
 
@@ -256,15 +260,49 @@ In the R code chunk below, do the following:
 5. identify influential species and add species coordinates to PCoA plot.
 
 ```{r}
+# conduct PCoA
+fish.pcoa <- cmdscale(fish.db, eig = TRUE, k = 3)
+
+# examine eigenvalues
+explainvar1 <- round(fish.pcoa$eig[1] / sum(fish.pcoa$eig), 3) *100
+explainvar2 <- round(fish.pcoa$eig[2] / sum(fish.pcoa$eig), 3) *100
+explainvar3 <- round(fish.pcoa$eig[3] / sum(fish.pcoa$eig), 3) *100
+sum.eig <- sum(explainvar1, explainvar2, explainvar3)
 
 
+# create PCoA ordination plot
 
+# define plot parameters
+par(mar = c(5, 5, 1, 2) + 0.1)
 
+# initiate plot
+plot(fish.pcoa$points[ , 1], fish.pcoa$points[ , 2], ylim = c(-0.2, 0.7),
+     xlab = paste("PCoA 1 (", explainvar1, "%)", sep = ""),
+     ylab = paste("PCoA 2 (", explainvar2, "%)", sep = ""),
+     pch = 16, cex = 2.0, type = "n", cex.lab = 1.5, cex.axis = 1.2, axes = FALSE)
 
+# add axes
+axis(side = 1, labels = T, lwd.ticks = 2, cex.axis = 1.2, las = 1)
+axis(side = 2, labels = T, lwd.ticks = 2, cex.axis = 1.2, las = 1)
+abline(h = 0, v = 0, lty = 3)
+box(lwd = 2)
 
+# add points and labels
+points(fish.pcoa$points[ , 1], fish.pcoa$points[ , 2],
+       pch = 19, cex = 3, bg = "gray", col = "gray")
+text(fish.pcoa$points[ , 1], fish.pcoa$points[ , 2],
+     labels = row.names(fish.pcoa$points))
 
+# calculate the relative abundances of each species at each site
+fishREL <- fish
+  for(i in 1:nrow(fish)){
+    fishREL[i, ] = fish[i, ] / sum(fish[i, ])
+  }
 
-
+# use above info to calculate and add species scores
+fish.pcoa <- add.spec.scores(fish.pcoa, fishREL, method = "pcoa.scores")
+text(fish.pcoa$cproj[ , 1], fish.pcoa$cproj[ , 2],
+     labels = row.names(fish.pcoa$cproj), col = "black")
 ```
 
 In the R code chunk below, do the following:  
@@ -273,11 +311,13 @@ In the R code chunk below, do the following:
 2. use a permutation test (999 permutations) to test the correlations of each species along each axis.
 
 ```{r}
+# more quantitative way
+spe.corr <- add.spec.scores(fish.pcoa, fishREL, method = "cor.scores")$cproj
+corrcut <- 0.7 # user defined cutoff
+imp.spp <- spe.corr[abs(spe.corr[ , 1]) >= corrcut | abs(spe.corr[ , 2]) >= corrcut, ]
 
-
-
-
-
+# permutation test for species abundances across axes
+fit <- envfit(fish.pcoa, fishREL, perm = 999)
 
 ```
 
@@ -286,8 +326,8 @@ In the R code chunk below, do the following:
 a.  Describe the grouping of sites in the Doubs River based on fish community composition.
 b.  Generate a hypothesis about which fish species are potential indicators of river quality.
 
-> ***Answer 7a***:  
-> ***Answer 7b***:   
+> ***Answer 7a***: Sites are primarily separated along the first axis, differences in which seem to be driven primarily by Salmo trutta fario (Satr), Phoxinus phoxinus (Phph), and Nemacheilus barbatulus (Neba). Along the second axis there is less separation, and it is driven primarily by Alburnus alburnus (Alal), Leuciscus cephalus cephalus (Lece), and Rutilus rutilus (Ruru).
+> ***Answer 7b***: Nearly all the fish species are highly significant, and all but Teso, Lele, and Eslu are significant. This makes sense, since the river mostly had fairly low species richness except for a couple patches of sites with high richness.
 
 
 ## SYNTHESIS
@@ -299,5 +339,59 @@ among subsamples in group B.
 Use a t-test to determine whether compositional similarity was affected by the "vicariance" event. 
 Finally, compare the compositional similarity of jelly beans in group A and group B to the source community?
 
+```{r}
+setwd("~/GitHub/QB2019_Caple/2.Worksheets/6.DiversitySampling")
+
+jellysource <- read.table("JellyBeans.Source.txt", sep = "\t", header = TRUE, row.names = 1)
+
+jellysource.num <- Filter(is.numeric, jellysource)
+
+
+jellysample <- read.table("JellyBeans.std.txt", sep = "\t", header = TRUE)
+
+jellysample.a <- subset(jellysample, Group == "A")
+jellya <- Filter(is.numeric, jellysample.a)
+jellysample.b <- subset(jellysample, Group == "B")
+jellyb <- Filter(is.numeric, jellysample.b)
+
+jellya.db <- vegdist(jellya, method = "bray")
+jellyb.db <- vegdist(jellyb, method = "bray")
+
+
+mean(jellya.db)
+mean(jellyb.db)
+
+
+t.test(jellya.db, jellyb.db)
+
+jellysource.db <- vegdist(jellysource.num, method = "bray")
+
+t.test(jellysource.db, jellya.db)
+t.test(jellysource.db, jellyb.db)
+
+```
+
+> Using a t-test, the vicariance event may have affected the compositional similarity; p = 0.05041, which is very close to significance; I cannot confidently say that the vicariance event affected composition, but it's so close to significance that I'm not comfortable ruling it out, either.
+
+> The composition of sample A varied significantly from the source community, with a very low p-value, but the composition of sample B had a very high p-value and did not differ significantly from the source community.
+
 2) Create a cluster diagram or ordination using the jelly bean data. 
 Are there any visual trends that would suggest a difference in composition between group A and group B?
+
+```{r}
+jellya.ward <- hclust(jellya.db, method = "ward.D2")
+jellyb.ward <- hclust(jellyb.db, method = "ward.D2")
+
+par(mar = c(1, 5, 2, 2) + 0.1, mfrow = c(1, 2))
+plot(jellya.ward, main = "Jelly Bean Sample A", ylab = "Squared Bray-Curtis Distance")
+plot(jellyb.ward, main = "Jelly Bean Sample B", ylab = "Squared Bray-Curtis Distance")
+
+gplots::heatmap.2(as.matrix(jellya), distfun = function(x) vegdist(x, method = "bray"),
+                  hclustfun = function(x) hclust(x, method = "ward.D2"),
+                  col = viridis, trace = "none", density.info = "none", main = "Sample A")
+gplots::heatmap.2(as.matrix(jellyb), distfun = function(x) vegdist(x, method = "bray"),
+                  hclustfun = function(x) hclust(x, method = "ward.D2"),
+                  col = viridis, trace = "none", density.info = "none", main = "Sample B")
+```
+
+> The two heat maps are very similar in that the same three 'species' (BlueDrk, Watermellon, OrangeSld) are the most heavily represented in both samples. However, the two heat maps show the species arranged in quite different ways; in Sample A, all three very abundant species are an outgroup to the rest of the species, and this is not true in Sample B.
