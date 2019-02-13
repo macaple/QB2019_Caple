@@ -1,6 +1,6 @@
 ---
 title: '8\. Worksheet: Among Site (Beta) Diversity -- Part 2'
-author: "Student Name; Z620: Quantitative Biodiversity, Indiana University"
+author: "Mackenzie Caple; Z620: Quantitative Biodiversity, Indiana University"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: pdf_document
 geometry: margin=2.54cm
@@ -40,9 +40,17 @@ In the R code chunk below, provide the code to:
 4. load the `vegan` R package (be sure to install if needed).  
 
 ```{r}
+rm(list = ls())
+getwd()
+setwd("~/GitHub/QB2019_Caple/2.Worksheets/8.BetaDiversity/")
 
-
-
+package.list <- c('vegan', 'ade4', 'viridis', 'gplots', 'BiodiversityR', 'indicspecies')
+for(package in package.list){
+  if(!require(package, character.only = TRUE, quietly = TRUE)){
+    install.packages(package)
+    library(package, character.only = TRUE)
+  }
+}
 
 ```
 
@@ -52,8 +60,10 @@ In the R code chunk below, load the `doubs` dataset from the `ade4` package
 
 ```{r}
 # note, pleae do not print the dataset when submitting
+data(doubs)
 
-
+fish <- doubs$fish
+fish <- fish[-8, ] # remove site 8 from the data (it has no observations)
 
 ```
 ## 3) HYPOTHESIS TESTING
@@ -67,21 +77,27 @@ In the code chunk below, test the hypothesis that fish community composition var
 2. use the multivariate analyses for categorical predictors to describe how fish community structure relates to habitat quality.
 
 ```{r}
+# create "factors" vector
+quality <- c(rep("HQ", 13), rep("MQ", 5), rep("LQ", 6), rep("MQ", 5))
 
+# run PERMANOVA with adonis function
+adonis(fish ~ quality, method = "bray", permutations = 999)
 
+# identify indicator species
+indval <- multipatt(fish, cluster = quality, func = "IndVal.g", control = how(nperm = 999))
+summary(indval)
 
-
-
-
-
-
+# calculate phi coefficient of association to examine habitat preference
+fish.rel <- decostand(fish, method = "total")
+phi <- multipatt(fish.rel, cluster = quality, func = "r.g", control = how(nperm = 999))
+summary(phi)
 
 ```
 
 ***Question 1***: Based on the PERMANOVA, IndVal, and phi coefficient analyses, what did you learn about the relationship between habitat quality and the fish species composition?
 Are the different analyses consistent with one another and do they agree with the visualizations (heat maps, cluster dendograms, ordinations) that you created?
 
-> ***Answer 1***: 
+> ***Answer 1***: Fish species do seem to tend to group by water quality, which agrees with the visualizations from last week. There is some overlap between HQ and MQ, and some overlap between MQ and LQ, but very very little between HQ and LQ; since our quality groupings were essentially rough estimates, this makes some sense.
 
 
 ### B.  Multivariate Procedures for Continuous Designs
@@ -93,17 +109,19 @@ In the R code chunk below, do the following:
 2. use a Mantel test to test the hypothesis that fish assemblages are correlated with stream environmental variables.
 
 ```{r}
+# define matrices
+fish.dist <- vegdist(doubs$fish[-8, ], method = "bray")
+env.dist <- vegdist(scale(doubs$env[-8, ]), method = "euclid")
 
-
-
-
+# Mantel test
+mantel(fish.dist, env.dist)
 
 ```
 
 ***Question 2***: What do the results from our Mantel test suggest about fish diversity and stream environmental conditions? 
 How does this relate to your hypothesis about stream quality influencing fish communities?
 
-> ***Answer 2***:  
+> ***Answer 2***:  The two matrices are highly significantly correlated, which supports our hypothesis that water quality is a major driver of fish community composition.
 
 ### ii.  Constrained Ordination
 In the R code chunk below, do the following:  
@@ -116,30 +134,86 @@ In the R code chunk below, do the following:
 6. plot the constrained ordination results including labeled points for each site, and
 7. add vectors that demonstrate the influence of each environmental factor the constrained ordination.   
 ```{r}
+# define environmental matrix
+env.chem <- as.matrix(doubs$env[-8, 5:11])
+
+# perform dbRDA
+doubs.dbrda <- dbrda(fish.dist ~ ., as.data.frame(env.chem))
+ordiplot(doubs.dbrda)
 
 
+# first, model only the intercept
+doubs.dbrda.mod0 <- dbrda(fish.dist ~ 1, as.data.frame(env.chem))
+
+# note that there are no vectors here (we didn't constrain anything)
+# therefore, the axes suggest this is a simple MDS (i.e. PCoA)
+ordiplot(doubs.dbrda.mod0)
+
+# next, model the full model, with all the explanatory variables
+doubs.dbrda.mod1 <- dbrda(fish.dist ~ ., as.data.frame(env.chem))
+
+# now step through all combinations of explanatory variables in our model
+# the function returns the model with the lowest AIC value
+doubs.dbrda <- ordiR2step(doubs.dbrda.mod0, doubs.dbrda.mod1, perm.max = 200)
+
+# look at the model that was selected
+doubs.dbrda$call
+doubs.dbrda$anova
+ordiplot(doubs.dbrda)
+
+# permutation tests to evaluate significance
+permutest(doubs.dbrda, permutations = 999)
+envfit(doubs.dbrda, env.chem[, c(4, 6, 7)], perm = 999)
+
+# calculate explained variation
+dbrda.explainvar1 <- round(doubs.dbrda$CCA$eig[1] / 
+                             sum(c(doubs.dbrda$CCA$eig, doubs.dbrda$CA$eig)), 3) * 100
+
+dbrda.explainvar2 <- round(doubs.dbrda$CCA$eig[2] / 
+                             sum(c(doubs.dbrda$CCA$eig, doubs.dbrda$CA$eig)), 3) * 100
 
 
+# plot the ordination for the selected model 
 
+# define plot parameters
+par(mar = c(5, 5, 4, 4) + 0.1)
 
+# initiate plot
+plot(scores(doubs.dbrda, display = "wa"), xlim = c(-1.3, 1.1), ylim = c(-1.1, 2.7),
+     xlab = paste("dbRDA 1 (", dbrda.explainvar1, "%)", sep = ""),
+     ylab = paste("dbRDA 2 (", dbrda.explainvar2, "%)", sep = ""),
+     pch = 16, cex = 2.0, type = "n", cex.lab = 1.5, cex.axis = 1.2, axes = FALSE)
 
+# add axes
+axis(side = 1, labels = T, lwd.ticks = 2, cex.axis = 1.2, las = 1)
+axis(side = 2, labels = T, lwd.ticks = 2, cex.axis = 1.2, las = 1)
+abline(h = 0, v = 0, lty = 3)
+box(lwd = 2)
 
+# add points and labels
+points(scores(doubs.dbrda, display = "wa"),
+       pch = 19, cex = 3, bg = "gray", col = "gray")
+text(scores(doubs.dbrda, display = "wa"),
+     labels = row.names(scores(doubs.dbrda, display = "wa")))
 
-
-
-
-
-
-
-
-
+# add environmental vectors
+vectors <- scores(doubs.dbrda, display = "bp")
+#row.names(vectors) <- rownames(vectors)
+arrows(0, 0, vectors[ , 1], vectors[ , 2],
+       lwd = 2, lty = 1, length = 0.2, col = "red")
+text(vectors[ , 1], vectors[ , 2], pos = 3,
+     labels = row.names(vectors))
+axis(side = 3, lwd.ticks = 2, cex.axis = 1.2, las = 1, col = "red", lwd = 2.2,
+     at = pretty(range(vectors[ , 1])) * 2, labels = pretty(range(vectors[ , 1])))
+axis(side = 4, lwd.ticks = 2, cex.axis = 1.2, las = 1, col = "red", lwd = 2.2,
+     at = pretty(range(vectors[ , 2])) * 2, labels = pretty(range(vectors[ , 2])))
 
 
 ```
 
 ***Question 3***: Based on the constrained ordination, what are the environmental variables (or groups of correlated variables) that seem to be contributing to variation in fish community structure?
 
-> ***Answer 3***: 
+> ***Answer 3***: The three main environmental variables seem to be oxy (dissolved oxygen), bdo (biological demand for oxygen), and nit (nitrates)
 
 ### iii. Variation Partitioning
 In the code chunk below,   
@@ -151,27 +225,204 @@ In the code chunk below,
 5. Partition the variation among sites into the relative importance of space, environment, spatially structured environment, and residuals,
 6. Plot the variation partitioning output to visualize it.  
 ```{r}
+# remember, our environmental model uses oxy, bdo, and nit, and has R2 of 0.53
+doubs.dbrda$anova
+
+# let's create a matrix model for our environmental data
+env.mod <- model.matrix(~ oxy + bdo + nit, as.data.frame(env.chem))[ , -1]
 
 
+# create the spatial model
+
+# first, weight each site by its relative abundance
+rs <- rowSums(fish)/sum(fish)
+
+# next, we will perform PCNM
+doubs.pcnmw <- pcnm(dist(doubs$xy[-8, ]), w = rs, dist.ret = T)
+
+#PCNM can return negative eigenvalues, but only the
+# eigenvectors associated with the positive eigenvalues are meaningful
+doubs.pcnmw$values > 0
+
+# model selection to determine which eigenvalues create the best model
+doubs.space <- as.data.frame(scores(doubs.pcnmw))
+doubs.pcnm.mod0 <- dbrda(fish.dist ~ 1, doubs.space)
+doubs.pcnm.mod1 <- dbrda(fish.dist ~ ., doubs.space)
+step.pcnm <- ordiR2step(doubs.pcnm.mod0, doubs.pcnm.mod1, perm.max = 200)
+
+# because this is another dbRBA, we could visualize the biplot
+# showing how each vector explains variation across the sites
+plot(step.pcnm)
+
+# the object 'step.pcnm' now contains the selected model
+step.pcnm$anova
+
+# we can construct a spatial model using only the selected PCNM axes
+space.mod <- model.matrix(~ PCNM2 + PCNM3 + PCNM5 + PCNM1 +
+                            PCNM13 + PCNM16 + PCNM6, doubs.space)[ , -1]
 
 
+# perform partial constrained ordination
 
+# first conduct constrained ordinations
+doubs.total.env <- dbrda(fish.dist ~ env.mod)
+doubs.total.space <- dbrda(fish.dist ~ space.mod)
 
+# next construct partial constrained ordinations
+doubs.env.cond.space <- dbrda(fish.dist ~ env.mod + Condition(space.mod))
+doubs.space.cond.env <- dbrda(fish.dist ~ space.mod + Condition(env.mod))
+
+# next test for significance of dbRDA fractions
+permutest(doubs.env.cond.space, permutations = 999)
+permutest(doubs.space.cond.env, permutations = 999)
+permutest(doubs.total.env, permutations = 999)
+permutest(doubs.total.space, permutations = 999)
+
+# use built-in varpart() function to calculate fractions of variation explained by each
+doubs.varpart <- varpart(fish.dist, env.mod, space.mod)
+doubs.varpart
+
+par(mar = c(2, 2, 2, 2))
+plot(doubs.varpart)
+text(1, 0.25, "Space")
+text(0, 0.25, "Env")
+mtext("Variation Partitioning of\nDoubs Fish Diversity", side = 3, line = -3)
 
 ```
 
 ***Question 4***: Interpret the variation partitioning results.   
 
-> ***Answer 4***: 
+> ***Answer 4***: Space and environment together predict ~72% of variation in Doubs fish diversity, with 13% explained by the environment alone, 24% explained by space alone, and 37% explained by the interaction of space and environment.
 
 ## SYNTHESIS
 
 1) Using the jelly bean data from class (i.e., JellyBeans.txt), perform a PERMANOVA to test whether or not the vicariance event (random splitting of source community) had an affect on jelly bean composition.
 Based on your previous analyses with this data set, what are your thoughts about the importance of stochastic vs. deterministic factors on estimates of biodiversity?
 
+```{r}
+setwd("~/GitHub/QB2019_Caple/2.Worksheets/6.DiversitySampling")
+
+jellysample <- read.table("JellyBeans.std.txt", sep = "\t", header = TRUE)
+jellysample.sort <- jellysample[order(jellysample$Group),]
+jellysample.numeric = jellysample.sort[ , 3:28]
+
+subcommunities <- c(rep("A", 5), rep("B", 4))
+
+adonis(jellysample.numeric ~ subcommunities, method = "bray", permutations = 999)
+
+
+# I thought this may be a more elegant way to get the same results-- but not being
+# familiar with these methods and using a stochastic test it's hard to be sure.
+# I tried running both with an increased number of permutations and it does seem to give the same result
+subcoms <- jellysample[ , 1]
+jellysample.num <- jellysample[ , 3:28]
+adonis(jellysample.num ~ subcoms, method = "bray", permutations = 999)
+```
+
+> The PERMANOVA results say that the jelly bean community composition varies significantly with subcommunity-- however, although the p-value is below the commonly accepted significance threshold, it is not below it by much; some runs of the PERMANOVA function at a fairly low number of permutations (999) gave a p-value slightly above 0.05. However, if the PERMANOVA is run with a greater number of permutations (99999), the p-values seem to converge around 0.047 (I removed this edit as it takes a little while to run and I didn't want to bog you down if you decided to run the code), so I feel reasonable confident in accepting this p-value and saying that it is likely that the vicariance event had a significant effect on the community composition. Running the tests multiple times, in multiple ways, and with multiple numbers of permutations has made me appreciate the stochastic nature of this test; although I think it's sometimes very important to use tests that are non-parametric, this exercise has shown me how important it is to use a large number of permutations if I'm doing more than exploratory statistics, since the differences in p-values between runs was large enough to shift the p-value back and forth over the commonly-accepted threshold of significance (though how seriously some people take that threshold is a debate for another time...)
+
 2) Load the dataset you are using for your Team Project. 
 Perform an ordination to visualize your dataset.
 Using this ordination, develop some hypotheses relevant to $\beta$-diversity.
 Use a statistic to test one of these hypotheses.
 Succinctly explain the finding and its relevance to your system.
+
+```{r}
+# unconstrained ordination
+
+
+rm(list = ls())
+setwd("~/GitHub/QB19_IndependentProject/")
+package.list <- c('vegan', 'ade4', 'viridis', 'gplots', 'BiodiversityR', 'indicspecies', 'dplyr')
+for(package in package.list){
+  if(!require(package, character.only = TRUE, quietly = TRUE)){
+    install.packages(package)
+    library(package, character.only = TRUE)
+  }
+}
+
+crawley.full <- read.csv("Crawley.csv")
+
+# filter data
+spec.all <- crawley.full[1:292, 4:23]
+
+# remove rows with no observations
+spec <- spec.all[-c(9, 23, 28, 29, 49, 50, 53, 71, 87, 90, 91, 139, 154, 161, 
+                    166, 168, 174, 188, 202, 215, 218, 219, 227, 234, 259, 263, 266, 290), ]
+
+# calculate Sørensen
+spec.ds <- vegdist(spec, method = "bray", binary = TRUE, upper = TRUE, diag = TRUE)
+
+# conduct PCoA
+spec.pcoa <- cmdscale(spec.ds, eig = TRUE, k = 3)
+
+# examine eigenvalues
+explainvar1 <- round(spec.pcoa$eig[1] / sum(spec.pcoa$eig), 3) *100
+explainvar2 <- round(spec.pcoa$eig[2] / sum(spec.pcoa$eig), 3) *100
+explainvar3 <- round(spec.pcoa$eig[3] / sum(spec.pcoa$eig), 3) *100
+sum.eig <- sum(explainvar1, explainvar2, explainvar3)
+
+
+# create PCoA ordination plot
+
+# define plot parameters
+par(mar = c(5, 5, 1, 2) + 0.1)
+
+# initiate plot
+plot(spec.pcoa$points[ , 1], spec.pcoa$points[ , 2], ylim = c(-0.7, 0.5),
+     xlab = paste("PCoA 1 (", explainvar1, "%)", sep = ""),
+     ylab = paste("PCoA 2 (", explainvar2, "%)", sep = ""),
+     pch = 16, cex = 2.0, type = "n", cex.lab = 1.5, cex.axis = 1.2, axes = FALSE)
+
+# add axes
+axis(side = 1, labels = T, lwd.ticks = 2, cex.axis = 1.2, las = 1)
+axis(side = 2, labels = T, lwd.ticks = 2, cex.axis = 1.2, las = 1)
+abline(h = 0, v = 0, lty = 3)
+box(lwd = 2)
+
+# add points and labels
+points(spec.pcoa$points[ , 1], spec.pcoa$points[ , 2],
+       pch = 19, cex = 3, bg = "gray", col = "gray")
+text(spec.pcoa$points[ , 1], spec.pcoa$points[ , 2],
+     labels = row.names(spec.pcoa$points))
+
+
+# hypothesis testing 
+
+# filter out nativity status into a vector
+nat.full <- crawley.full[1:292, 2]
+
+# remove rows with no observations
+nat <- nat.full[-c(9, 23, 28, 29, 49, 50, 53, 71, 87, 90, 91, 139, 154, 161, 
+                    166, 168, 174, 188, 202, 215, 218, 219, 227, 234, 259, 263, 266, 290)]
+
+# run PERMANOVA
+adonis(spec ~ nat, method = "bray", permutations = 999)
+
+
+
+# I couldn't figure out how to get this to work... I'll try to work on it more this week
+
+# test hypothesis: there are relatively few species driving community differences
+
+# create "factors" vector
+# richness <- colSums(spec)
+
+# run PERMANOVA with adonis function
+# adonis(spec ~ richness, method = "bray", permutations = 999)
+
+# identify indicator species
+# indval <- multipatt(spec, cluster = richness, func = "IndVal.g", control = how(nperm = 999))
+# summary(indval)
+
+# calculate phi coefficient of association to examine habitat preference
+# spec.rel <- decostand(spec, method = "total")
+# phi <- multipatt(spec.rel, cluster = quality, func = "r.g", control = how(nperm = 999))
+# summary(phi)
+
+```
+
+> It's interesting that there are three main groupings, that all converge near the origin. This tells me that although most species tend to be in most communities, there are some species that tend to associate with others, forming three distinct community types that overlap with the 'base' community but not much with each other. I wanted to be able to see which points were from invasive vs native species, but I couldn't figure out how-- I'll work on that for next week.
+
+> I decided to test the hypothesis of whether the nativity status of a species had a significant effect on the communities in which it is found. I ran a PERMANOVA comparing the nativity status vector to the site by species matrix, and found that this relationship is indeed significant. This is relevent to our system because it tells us that the nativity status of plants have a significant impact on community composition.
 
