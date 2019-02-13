@@ -278,22 +278,151 @@ permutest(doubs.space.cond.env, permutations = 999)
 permutest(doubs.total.env, permutations = 999)
 permutest(doubs.total.space, permutations = 999)
 
+# use built-in varpart() function to calculate fractions of variation explained by each
+doubs.varpart <- varpart(fish.dist, env.mod, space.mod)
+doubs.varpart
 
+par(mar = c(2, 2, 2, 2))
+plot(doubs.varpart)
+text(1, 0.25, "Space")
+text(0, 0.25, "Env")
+mtext("Variation Partitioning of\nDoubs Fish Diversity", side = 3, line = -3)
 
 ```
 
 ***Question 4***: Interpret the variation partitioning results.   
 
-> ***Answer 4***: 
+> ***Answer 4***: Space and environment together predict ~72% of variation in Doubs fish diversity, with 13% explained by the environment alone, 24% explained by space alone, and 37% explained by the interaction of space and environment.
 
 ## SYNTHESIS
 
 1) Using the jelly bean data from class (i.e., JellyBeans.txt), perform a PERMANOVA to test whether or not the vicariance event (random splitting of source community) had an affect on jelly bean composition.
 Based on your previous analyses with this data set, what are your thoughts about the importance of stochastic vs. deterministic factors on estimates of biodiversity?
 
+```{r}
+setwd("~/GitHub/QB2019_Caple/2.Worksheets/6.DiversitySampling")
+
+jellysample <- read.table("JellyBeans.std.txt", sep = "\t", header = TRUE)
+jellysample.sort <- jellysample[order(jellysample$Group),]
+jellysample.numeric = jellysample.sort[ , 3:28]
+
+subcommunities <- c(rep("A", 5), rep("B", 4))
+
+adonis(jellysample.numeric ~ subcommunities, method = "bray", permutations = 999)
+
+
+# I thought this may be a more elegant way to get the same results-- but not being
+# familiar with these methods and using a stochastic test it's hard to be sure.
+# I tried running both with an increased number of permutations and it does seem to give the same result
+subcoms <- jellysample[ , 1]
+jellysample.num <- jellysample[ , 3:28]
+adonis(jellysample.num ~ subcoms, method = "bray", permutations = 999)
+```
+
+> The PERMANOVA results say that the jelly bean community composition varies significantly with subcommunity-- however, although the p-value is below the commonly accepted significance threshold, it is not below it by much; some runs of the PERMANOVA function at a fairly low number of permutations (999) gave a p-value slightly above 0.05. However, if the PERMANOVA is run with a greater number of permutations (99999), the p-values seem to converge around 0.047 (I removed this edit as it takes a little while to run and I didn't want to bog you down if you decided to run the code), so I feel reasonable confident in accepting this p-value and saying that it is likely that the vicariance event had a significant effect on the community composition. Running the tests multiple times, in multiple ways, and with multiple numbers of permutations has made me appreciate the stochastic nature of this test; although I think it's sometimes very important to use tests that are non-parametric, this exercise has shown me how important it is to use a large number of permutations if I'm doing more than exploratory statistics, since the differences in p-values between runs was large enough to shift the p-value back and forth over the commonly-accepted threshold of significance (though how seriously some people take that threshold is a debate for another time...)
+
 2) Load the dataset you are using for your Team Project. 
 Perform an ordination to visualize your dataset.
 Using this ordination, develop some hypotheses relevant to $\beta$-diversity.
 Use a statistic to test one of these hypotheses.
 Succinctly explain the finding and its relevance to your system.
+
+```{r}
+# unconstrained ordination
+
+
+rm(list = ls())
+setwd("~/GitHub/QB19_IndependentProject/")
+package.list <- c('vegan', 'ade4', 'viridis', 'gplots', 'BiodiversityR', 'indicspecies', 'dplyr')
+for(package in package.list){
+  if(!require(package, character.only = TRUE, quietly = TRUE)){
+    install.packages(package)
+    library(package, character.only = TRUE)
+  }
+}
+
+crawley.full <- read.csv("Crawley.csv")
+
+# filter data
+spec.all <- crawley.full[1:292, 4:23]
+
+# remove rows with no observations
+spec <- spec.all[-c(9, 23, 28, 29, 49, 50, 53, 71, 87, 90, 91, 139, 154, 161, 
+                    166, 168, 174, 188, 202, 215, 218, 219, 227, 234, 259, 263, 266, 290), ]
+
+# calculate Sørensen
+spec.ds <- vegdist(spec, method = "bray", binary = TRUE, upper = TRUE, diag = TRUE)
+
+# conduct PCoA
+spec.pcoa <- cmdscale(spec.ds, eig = TRUE, k = 3)
+
+# examine eigenvalues
+explainvar1 <- round(spec.pcoa$eig[1] / sum(spec.pcoa$eig), 3) *100
+explainvar2 <- round(spec.pcoa$eig[2] / sum(spec.pcoa$eig), 3) *100
+explainvar3 <- round(spec.pcoa$eig[3] / sum(spec.pcoa$eig), 3) *100
+sum.eig <- sum(explainvar1, explainvar2, explainvar3)
+
+
+# create PCoA ordination plot
+
+# define plot parameters
+par(mar = c(5, 5, 1, 2) + 0.1)
+
+# initiate plot
+plot(spec.pcoa$points[ , 1], spec.pcoa$points[ , 2], ylim = c(-0.7, 0.5),
+     xlab = paste("PCoA 1 (", explainvar1, "%)", sep = ""),
+     ylab = paste("PCoA 2 (", explainvar2, "%)", sep = ""),
+     pch = 16, cex = 2.0, type = "n", cex.lab = 1.5, cex.axis = 1.2, axes = FALSE)
+
+# add axes
+axis(side = 1, labels = T, lwd.ticks = 2, cex.axis = 1.2, las = 1)
+axis(side = 2, labels = T, lwd.ticks = 2, cex.axis = 1.2, las = 1)
+abline(h = 0, v = 0, lty = 3)
+box(lwd = 2)
+
+# add points and labels
+points(spec.pcoa$points[ , 1], spec.pcoa$points[ , 2],
+       pch = 19, cex = 3, bg = "gray", col = "gray")
+text(spec.pcoa$points[ , 1], spec.pcoa$points[ , 2],
+     labels = row.names(spec.pcoa$points))
+
+
+# hypothesis testing 
+
+# filter out nativity status into a vector
+nat.full <- crawley.full[1:292, 2]
+
+# remove rows with no observations
+nat <- nat.full[-c(9, 23, 28, 29, 49, 50, 53, 71, 87, 90, 91, 139, 154, 161, 
+                    166, 168, 174, 188, 202, 215, 218, 219, 227, 234, 259, 263, 266, 290)]
+
+# run PERMANOVA
+adonis(spec ~ nat, method = "bray", permutations = 999)
+
+
+
+# I couldn't figure out how to get this to work... I'll try to work on it more this week
+
+# test hypothesis: there are relatively few species driving community differences
+
+# create "factors" vector
+# richness <- colSums(spec)
+
+# run PERMANOVA with adonis function
+# adonis(spec ~ richness, method = "bray", permutations = 999)
+
+# identify indicator species
+# indval <- multipatt(spec, cluster = richness, func = "IndVal.g", control = how(nperm = 999))
+# summary(indval)
+
+# calculate phi coefficient of association to examine habitat preference
+# spec.rel <- decostand(spec, method = "total")
+# phi <- multipatt(spec.rel, cluster = quality, func = "r.g", control = how(nperm = 999))
+# summary(phi)
+
+```
+
+> It's interesting that there are three main groupings, that all converge near the origin. This tells me that although most species tend to be in most communities, there are some species that tend to associate with others, forming three distinct community types that overlap with the 'base' community but not much with each other. I wanted to be able to see which points were from invasive vs native species, but I couldn't figure out how-- I'll work on that for next week.
+
+> I decided to test the hypothesis of whether the nativity status of a species had a significant effect on the communities in which it is found. I ran a PERMANOVA comparing the nativity status vector to the site by species matrix, and found that this relationship is indeed significant. This is relevent to our system because it tells us that the nativity status of plants have a significant impact on community composition.
 
