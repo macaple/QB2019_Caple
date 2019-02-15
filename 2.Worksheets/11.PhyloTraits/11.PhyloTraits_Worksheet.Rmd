@@ -1,6 +1,6 @@
 ---
 title: '11\. Worksheet: Phylogenetic Diversity - Traits'
-author: "Student Name; Z620: Quantitative Biodiversity, Indiana University"
+author: "Mackenzie Caple; Z620: Quantitative Biodiversity, Indiana University"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: pdf_document
 geometry: margin=2.54cm
@@ -48,7 +48,7 @@ In the R code chunk below, provide the code to:
 ```{r}
 rm(list = ls())
 getwd()
-setwd("~/GitHub/QB-2019/2.Worksheets/11.PhyloTraits")
+setwd("~/GitHub/QB2019_Caple/2.Worksheets/11.PhyloTraits")
 
 ```
 
