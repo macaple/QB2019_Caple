@@ -1,0 +1,693 @@
+---
+title: "Quantitative Biodiversity Final Project"
+author: "Lana Bolin, Mackenzie Caple, Brianna Crawley"
+date: "2/6/2019"
+output: pdf_document
+---
+
+## SETUP
+
+# CLEAR WORKING DIRECTORY, LOAD PACKAGES
+
+```{r, warning=F, message=F}
+rm(list = ls())
+
+package.list <- c('vegan', 'dplyr', 'magrittr', 'ggplot2', 'BiodiversityR', 'indicspecies')
+for(package in package.list){
+  if(!require(package, character.only = TRUE, quietly = TRUE)){
+    install.packages(package)
+    library(package, character.only = TRUE)
+  }
+}
+
+```
+
+# SET WORKING DIRECTORY, READ IN DATA
+
+```{r}
+setwd("~/GitHub/QB19_IndependentProject/")
+
+crawley.full <- read.csv("Crawley.csv")
+crawley.site.factors <- read.csv("site_factors.csv")
+
+crawley.df <- crawley.full[, -c(1:3)]  # Get rid of non-incidence columns
+```
+
+
+
+
+## SITE-BY-SPECIES MATRICES
+
+sbs: full SbS; ordered by species name
+```{r}
+# transpose data to create a site-by-species matrix, removing non-site columns
+sbs <- t(crawley.full[1:292 , 4:23])
+sbs <- as.data.frame(sbs)
+colnames(sbs) <- crawley.full[1:292, 1]
+```
+
+sbs.ns: SbS w/o species that occur in 0 or 1 sites; ordered by native status then species name
+```{r}
+# sort by nativity status
+cf.summed <- crawley.full[order(crawley.full$Nativity.Code), ]
+# add rowsums column
+cf.summed$sums <- rowSums(cf.summed[ , 4:23])
+# filter to remove species found in 0 or 1 site
+cf.ns <- cf.summed[which(cf.summed$sums > 1), ]
+
+# transpose data, add species names as column names
+sbs.ns <- t(cf.ns[ , 4:23])
+sbs.ns <- as.data.frame(sbs.ns)
+colnames(sbs.ns) <- cf.ns[ , 1]
+```
+
+sbs.factors: SbS plus environmental factors
+```{r}
+sbs.factors <- read.csv("sbs_factors.csv", header = TRUE)
+```
+
+
+
+
+## NUMBERS OF EACH TYPE OF SPECIES
+
+Nativity codes are:   
+0 = native to Indiana  
+1 = native to the US  
+2 = exotic  
+3 = invasive  
+
+Check how many of each nativity code we have using dplyr
+```{r}
+
+crawley.full %>%
+  group_by(Nativity.Code) %>%
+  summarize(grpcount = n())
+
+# Those 8 empty ones are just empty rows at the bottom of the df. Let's get rid of those, as well as the two empty columns at the end
+crawley.full <- crawley.full[-c(293:300), -c(24, 25)]
+crawley.df <- crawley.full[, -c(1:3)]  # Get rid of non-incidence columns
+crawley.species <- crawley.full$Species  # Save species as a vector, in case we need it
+crawley <- as.matrix(t(crawley.df))  
+
+crawley.sbys <- matrix(crawley, ncol = ncol(crawley), dimnames = NULL)
+```
+
+
+
+
+## SCATTER PLOTS
+
+
+Richness vs. Invasive present / Invasive absent in community
+```{r}
+# Make site-by-species matrix where nativity code is "0" for Native, "1" for Invasive/Exotic
+
+# We want to separate into two df's: one for sites that have at least one invasive, and one for sites that don't.
+
+# To do that, we make a vector of invasive species
+crawley.inv <- crawley.full[crawley.full$ Nativity.Code == "3", ]
+
+```
+> Every site has at least one invasive, so I can't make my plot!
+
+
+Percent invasive species vs. species richness
+```{r}
+# subset data into separate data frames for each nativity code
+nativeIN <- subset(crawley.full, Nativity.Code == "0")
+nativeUS <- subset(crawley.full, Nativity.Code == "1")
+exotic <- subset(crawley.full, Nativity.Code == "2")
+invasive <- subset(crawley.full, Nativity.Code == "3")
+unknown <- subset(crawley.full, Nativity.Code == "UNK")
+
+# sum columns to find observed species richness for each site; repeat for each nativity code
+nativeIN.sr <- colSums(nativeIN[ , 4:23])
+nativeUS.sr <- colSums(nativeUS[ , 4:23])
+exotic.sr <- colSums(exotic[ , 4:23])
+invasive.sr <- colSums(invasive[ , 4:23])
+unknown.sr <- colSums(unknown[ , 4:23])
+
+# calculate total native richness
+native.sr <- nativeIN.sr + nativeUS.sr
+
+# calculate total observed species richness
+total.sr <- colSums(crawley.full[ , 4:23])
+
+# this was a sanity check to make sure everything has worked so far
+# total.osr <- nativeIN.sr + nativeUS.sr + exotic.sr + invasive.sr + unknown.sr
+# total.sr == total.osr
+
+# plot richness of invasive species vs total species richness
+plot(invasive.sr, total.sr, ylim = range(0:70), xlim = range(0:15), 
+     xlab = "Number of Invasive Species Present", ylab = "Total Observed Species Richness")
+# add fit lines
+abline(lm(total.sr~invasive.sr), col="blue") # regression line (y~x) 
+
+# plot richness of invasive species vs native species richness
+plot(invasive.sr, native.sr, ylim = range(0:70), xlim = range(0:15), 
+     xlab = "Number of Invasive Species Present", ylab = "Number of Native Species Present", main = "Observed Richness of Native and Invasive Plants")
+# add fit lines
+abline(lm(native.sr~invasive.sr), col="blue") # regression line (y~x) 
+
+
+# plot richness of native species richness vs invasive species 
+plot(native.sr, invasive.sr, ylim = range(0:15), xlim = range(0:60), 
+     ylab = "Number of Invasive Species Present", xlab = "Number of Native Species Present", main = "Observed Richness of Native and Invasive Plants")
+# add fit lines
+abline(lm(invasive.sr~native.sr), col="blue") # regression line (y~x) 
+
+summary(lm(native.sr~invasive.sr))
+
+```
+> Ok, so there's a pretty clear positive trend for both graphs, which is pretty neat-- so from this data, it looks like adding invasives simply adds species, and there isn't evidence that the invasives are decreasing native or total species richness (the opposite, in fact, which is logical for the first graph but really interesting for the second graph)
+
+Planted species vs. volunteer species
+```{r}
+# ignore this for now, I'm just playin' 
+planted <- subset(crawley.full, Planted.or.Volunteer == "1")
+volunteer <- subset(crawley.full, Planted.or.Volunteer == "2")
+planted.SR <- colSums(planted[ , 4:23])
+volunteer.SR <- colSums(volunteer[ , 4:23])
+
+plot(planted.SR, volunteer.SR, ylim = c(0, 80), xlim = c(0, 30),
+     xlab = "Planted Species Richness",
+     ylab = "Volunteer Species Richness", las = 1)
+
+```
+
+Percent Invasive vs. Time Since Planting
+```{r}
+crawley.full.1 <- crawley.full
+time.since.planting <- crawley.site.factors$Years.between.planting.and.census  # this is an integer, for now
+
+crawley.full.1 %>%
+  group_by(Nativity.Code) %>%
+  summarize(grpcount = n())
+
+crawley.full.1 <- crawley.full.1[-c(293:300), -c(24, 25)]
+
+# Calculate percent invasive for each site
+percent.invasive <- colSums(crawley.df) / nrow(crawley.df)
+
+plot(x = time.since.planting, y = percent.invasive,
+     xlab = "Years Since Planting",
+     ylab = "Percent Invasive Species in Site")
+abline(lm(percent.invasive ~ time.since.planting), col="blue")
+
+summary(lm(percent.invasive ~ time.since.planting))  # P = 0.23
+```
+
+
+
+
+## BETA DIVERSITY
+
+Read in data, create SbS matrix
+```{r}
+# loading transposed site by species matrix with nativity/planting codes removed
+sbs.factors <- read.csv("sbs_factors.csv", header = TRUE)
+sbs <- sbs.factors[ , -c(1:7)]
+```
+
+
+Create distance matrices
+```{r}
+# sorted data by site factors
+mulch.sbs <- sbs.factors[order(sbs.factors$MULCH),]
+litter.sbs <- sbs.factors[order(sbs.factors$LITTER),]
+weediness.sbs <- sbs.factors[order(sbs.factors$WEEDINESS),]
+
+# calculated Sorenson similarity
+msbs.ds <- vegdist(mulch.sbs[ , -c(1:7)], method = "bray", binary = TRUE)
+lsbs.ds <- vegdist(litter.sbs[ , -c(1:7)], method = "bray", binary = TRUE)
+wsbs.ds <- vegdist(weediness.sbs[ , -c(1:7)], method = "bray", binary = TRUE)
+```
+
+
+Heat maps
+```{r}
+# heat maps of site similarity
+require(viridis)
+levelplot(as.matrix(msbs.ds), aspect = "iso", col.regions = magma,
+                    xlab = "GreenSpace Site (Sort: Mulch Abundance)", ylab = "GreenSpace Site (Sort: Mulch Abundance)", scales = list(cex = 0.5),
+                    main = "Sorenson Distance")
+png(filename = "Mulch_heatmap.png")
+
+levelplot(as.matrix(lsbs.ds), aspect = "iso", col.regions = magma,
+                    xlab = "GreenSpace Site (Sort: Litter Abundance)", ylab = "GreenSpace Site (Sort: Litter Abundance)", scales = list(cex = 0.5),
+                    main = "Sorenson Distance")
+
+levelplot(as.matrix(wsbs.ds), aspect = "iso", col.regions = magma,
+                    xlab = "GreenSpace Site (Sort: Weediness Index)", ylab = "GreenSpace Site (Sort: Weediness Index)", scales = list(cex = 0.5),
+                    main = "Sorenson Distance")
+png(filename = "Weediness_heatmap.png")
+
+```
+> Not expecting to find any patterns with site similarity honestly (and it doesn't look like there are any!), but it's cool to see that they're overall pretty dissimilar. Wonder if that changes looking only at planted species?
+>Not sure if the labels help, but the heat maps just differ based on the sorting of the dataset; the values are ascending, so right to left and down to up is least mulch/litter/weeds to most.
+
+
+```{r}
+# subset initially planted vs volunteer species 
+planted <- subset(crawley.full, Planted.or.Volunteer == "1")
+volunteer <- subset(crawley.full, Planted.or.Volunteer == "2")
+planted.SR <- colSums(planted[ , 4:23])
+volunteer.SR <- colSums(volunteer[ , 4:23])
+
+plot(planted.SR, volunteer.SR, ylim = c(0, 80), xlim = c(0, 30),
+     xlab = "Planted Species Richness",
+     ylab = "Volunteer Species Richness", las = 1)
+abline(lm(volunteer.SR~planted.SR), col="blue")
+
+
+# What about planted v volunteer in low mulch sites? Native v invasive?
+# rationale: low mulch as a measure of open niche space (high mulch = lots of open space?)
+#lowmulch <- subset(sbs.factors, MULCH %in% c("0", "1"))
+nativeLM <- nativeIN[ , c(9, 10, 12, 13, 14, 15, 16, 20, 23)]
+invasiveLM <- invasive[ , c(9, 10, 12, 13, 14, 15, 16, 20, 23)]
+nativeLM.SR <- colSums(nativeLM)
+invasiveLM.SR <- colSums(invasiveLM)
+
+plot(nativeLM.SR, invasiveLM.SR, ylim = c(0, 20), xlim = c(0, 30),
+     xlab = "Native Species Richness",
+     ylab = "Invasive Species Richness", las = 1)
+abline(lm(invasiveLM.SR~nativeLM.SR), col="blue")
+summary(lm(invasiveLM.SR~nativeLM.SR))
+```
+
+
+
+## PERMANOVA 
+
+
+Using site types and locations
+```{r}
+# site type (i.e. school, residential, etc.)
+site.type <- c(rep("Business", 1), rep ("Residential", 1), rep("School", 1), rep("Residential", 1), rep("Business", 1), rep("Other", 1), rep ("Business", 1), rep("Other", 2), rep("Residential", 1), rep("School", 2), rep ("Business", 1), rep("School", 1), rep("Residential", 2), rep("School", 1), rep("Other", 1), rep("Business", 1), rep("Residential", 1))
+adonis(sbs ~ site.type, method = "bray", permutations = 999)
+
+# median income classification
+region.SES <- c(rep("Mid", 1), rep("Low", 1), rep("Mid", 1), rep("Low", 2), rep("Mid", 1), rep("Low", 1), rep("Upper", 1),  rep("Low", 2), rep("Mid", 2), rep("Upper", 1), rep("Low", 3), rep("Upper", 1), rep("Mid", 1), rep("Low", 1), rep("Mid", 1)) 
+adonis(sbs ~ region.SES, method = "bray", permutations = 999)
+
+# weediness
+weediness <- c(rep("Absent", 2), rep("Low", 6), rep("Medium", 10), rep("High", 2))
+adonis(sbs ~ weediness, method = "bray", permutations = 999)
+
+# mulch
+mulch <- c(rep("None", 3), rep("Low", 6), rep("Medium", 7), rep("High", 4))
+adonis( sbs ~ mulch, method = "bray", permutations = 999)
+
+# didn't do litter- realized that only two sites had any litter at all. Explains why the heat map looks so homogenous! 
+# also neither of the PERMANOVAs were significant
+```
+
+
+
+
+## ORDINATION
+
+
+PCoA, full SbS
+```{r}
+sbs.ds <- vegdist(sbs, method = "bray", binary = TRUE) 
+sbs.pcoa <- cmdscale(sbs.ds, eig = TRUE, k = 3)
+explainvar1.sbs <- round(sbs.pcoa$eig[1] / sum (sbs.pcoa$eig), 3) * 100
+explainvar2.sbs <- round(sbs.pcoa$eig[2] / sum (sbs.pcoa$eig), 3) * 100
+explainvar3.sbs <- round(sbs.pcoa$eig[3] / sum (sbs.pcoa$eig), 3) * 100
+sum.eigsbs <- sum(explainvar1.sbs, explainvar2.sbs, explainvar3.sbs)
+sum.eigsbs
+```
+plot full PCoA
+```{r}
+par(mar = c(4, 4, 1, 1) + 0.1) 
+plot(sbs.pcoa$points[, 1], sbs.pcoa$points[, 2],
+     ylim = c(-1.2, 2), xlim = c(-2.5, 2.5),
+     xlab = paste("PCoA 1 (", explainvar1.sbs, "%)", sep = ""),
+     ylab = paste("PCoA 2 (", explainvar2.sbs, "%)", sep = ""),
+     pch = 16, cex = 0.8, type = "n", cex.lab = 0.8, cex.axis = 0.8, axes = FALSE)
+axis(side = 1, labels = T, lwd.ticks = 2, cex.axis = 0.8, las = 1) 
+axis(side = 2, labels = T, lwd.ticks = 2, cex.axis = 0.8, las = 1) 
+abline(h = 0, v = 0, lty = 3)
+box(lwd = 2)
+points(sbs.pcoa$points[, 1], sbs.pcoa$points[, 2], 
+    pch = 19, cex = 2, bg = "gray", col = "gray")
+text(sbs.pcoa$points[, 1], sbs.pcoa$points[, 2], cex = 0.8,
+    labels = rownames(sbs))
+
+# add species labels to PCoA
+sbs.pcoa <- add.spec.scores(sbs.pcoa, sbs, method = "pcoa.scores")
+text(sbs.pcoa$cproj[ , 1], sbs.pcoa$cproj[ , 2], cex = 0.5,
+     labels = row.names(sbs.pcoa$cproj), col = "blue")
+```
+
+
+dbRDA
+```{r}
+#dbrda plot with site factors
+site.factors <- sbs.factors[ ,2:4]
+sbs.dbrda <- dbrda(sbs.ds ~ ., as.data.frame(site.factors))
+ordiplot(sbs.dbrda)
+png(filename="dbRDA.png")
+
+# changed site.factors to character data... drbda won't run anymmore? sitefactors reads as three vectors, while site.factors reads as 20 rows of three columns
+# is a dbrda possible with categorical data?
+# sitefactors <- as.factor(site.factors)
+# as.data.frame(sitefactors)
+# sbs.dbrda <- dbrda(sbs.ds ~ ., as.data.frame(sitefactors))
+# ordiplot(sbs.dbrda)
+
+permutest(sbs.dbrda, permutations = 999)
+envfit(sbs.dbrda, site.factors, perm = 999)
+
+
+#mantel test? not sure if done right.
+sitefact.ds <- vegdist(site.factors, method = "euclidean")
+mantel(sbs.ds,sitefact.ds)
+
+```
+
+PCoA, not including species in 1/0 sites
+```{r}
+sbs.ds <- vegdist(sbs.ns, method = "bray", binary = TRUE) 
+sbs.pcoa <- cmdscale(sbs.ds, eig = TRUE, k = 3)
+explainvar1.sbs <- round(sbs.pcoa$eig[1] / sum (sbs.pcoa$eig), 3) * 100
+explainvar2.sbs <- round(sbs.pcoa$eig[2] / sum (sbs.pcoa$eig), 3) * 100
+explainvar3.sbs <- round(sbs.pcoa$eig[3] / sum (sbs.pcoa$eig), 3) * 100
+sum.eigsbs <- sum(explainvar1.sbs, explainvar2.sbs, explainvar3.sbs)
+```
+
+plot PCoA, color-coding by native status, adding text for richness indicator species
+```{r}
+# plot
+par(mar = c(4, 4, 1, 1) + 0.1) 
+plot(sbs.pcoa$points[, 1], sbs.pcoa$points[, 2],
+     ylim = c(-1.1, 1.9), xlim = c(-2.2, 2),
+     xlab = paste("PCoA 1 (", explainvar1.sbs, "%)", sep = ""),
+     ylab = paste("PCoA 2 (", explainvar2.sbs, "%)", sep = ""),
+     pch = 16, cex = 0.8, type = "n", cex.lab = 0.8, cex.axis = 0.8, axes = FALSE)
+axis(side = 1, labels = T, lwd.ticks = 2, cex.axis = 0.8, las = 1) 
+axis(side = 2, labels = T, lwd.ticks = 2, cex.axis = 0.8, las = 1) 
+abline(h = 0, v = 0, lty = 3)
+box(lwd = 2)
+points(sbs.pcoa$points[, 1], sbs.pcoa$points[, 2], 
+    pch = 19, cex = 1.5, bg = "gray", col = "gray")
+text(sbs.pcoa$points[, 1], sbs.pcoa$points[, 2], cex = 0.6,
+#   labels = rownames(sbs.ns)      # these made the graph very messy (well... even more messy)
+    col = "black")
+
+# add species labels to PCoA (I had to separate them manually, not sure how to do it better)
+sbs.pcoa <- add.spec.scores(sbs.pcoa, sbs.ns, method = "pcoa.scores")
+# native species (IN or US)
+points(sbs.pcoa$cproj[1:84, 1], sbs.pcoa$cproj[1:84, 2], 
+       pch = 21, cex = 0.6, bg = "green3", col = "green4")
+#text(sbs.pcoa$cproj[1:84, 1], sbs.pcoa$cproj[1:84, 2], cex = 0.4,
+#     labels = row.names(sbs.pcoa$cproj[1:84, ]), 
+#     col = "darkgreen")
+# exotic species
+points(sbs.pcoa$cproj[85:120, 1], sbs.pcoa$cproj[85:120, 2], 
+       pch = 21, cex = 0.6, bg = "darkorchid1", col = "darkorchid4")
+#text(sbs.pcoa$cproj[85:120, 1], sbs.pcoa$cproj[85:120, 2], cex = 0.4,
+#     labels = row.names(sbs.pcoa$cproj[85:120, ]), 
+#     col = "purple")
+# invasive species
+points(sbs.pcoa$cproj[121:135, 1], sbs.pcoa$cproj[121:135, 2], 
+       pch = 21, cex = 0.6, bg = "red1", col = "red3")
+#text(sbs.pcoa$cproj[121:135, 1], sbs.pcoa$cproj[121:135, 2], cex = 0.4,
+#     labels = row.names(sbs.pcoa$cproj[121:135, ]), 
+#     col = "red")
+# unknown nativity status species
+points(sbs.pcoa$cproj[135:143, 1], sbs.pcoa$cproj[135:143, 2], 
+       pch = 21, cex = 0.6, bg = "deepskyblue", col = "blue3")
+#text(sbs.pcoa$cproj[135:143, 1], sbs.pcoa$cproj[135:143, 2], cex = 0.4,
+#     labels = row.names(sbs.pcoa$cproj[135:143, ]), 
+#     col = "blue")
+
+# indicator species: high richness sites
+text(sbs.pcoa$cproj[c(45, 29, 19, 143, 30, 131, 76, 140, 22), 1], 
+     sbs.pcoa$cproj[c(45, 29, 19, 143, 30, 131, 76, 140, 22), 2], cex = 0.6,
+     labels = row.names(sbs.pcoa$cproj[c(45, 29, 19, 143, 30, 131, 76, 140, 22), ]),
+     col = "darkorange")
+
+```
+
+plot PCoA, color-coding by native status, adding text for percent volunteer indicator species
+```{r}
+# plot
+par(mar = c(4, 4, 1, 1) + 0.1) 
+plot(sbs.pcoa$points[, 1], sbs.pcoa$points[, 2],
+     ylim = c(-1.1, 1.9), xlim = c(-2.2, 2),
+     xlab = paste("PCoA 1 (", explainvar1.sbs, "%)", sep = ""),
+     ylab = paste("PCoA 2 (", explainvar2.sbs, "%)", sep = ""),
+     pch = 16, cex = 0.8, type = "n", cex.lab = 0.8, cex.axis = 0.8, axes = FALSE)
+axis(side = 1, labels = T, lwd.ticks = 2, cex.axis = 0.8, las = 1) 
+axis(side = 2, labels = T, lwd.ticks = 2, cex.axis = 0.8, las = 1) 
+abline(h = 0, v = 0, lty = 3)
+box(lwd = 2)
+points(sbs.pcoa$points[, 1], sbs.pcoa$points[, 2], 
+    pch = 19, cex = 1.5, bg = "gray", col = "gray")
+text(sbs.pcoa$points[, 1], sbs.pcoa$points[, 2], cex = 0.6,
+#   labels = rownames(sbs.ns)      # these made the graph very messy (well... even more messy)
+    col = "black")
+
+# add species labels to PCoA (I had to separate them manually, not sure how to do it better)
+sbs.pcoa <- add.spec.scores(sbs.pcoa, sbs.ns, method = "pcoa.scores")
+# native species (IN or US)
+points(sbs.pcoa$cproj[1:84, 1], sbs.pcoa$cproj[1:84, 2], 
+       pch = 21, cex = 0.6, bg = "green3", col = "green4")
+#text(sbs.pcoa$cproj[1:84, 1], sbs.pcoa$cproj[1:84, 2], cex = 0.4,
+#     labels = row.names(sbs.pcoa$cproj[1:84, ]), 
+#     col = "darkgreen")
+# exotic species
+points(sbs.pcoa$cproj[85:120, 1], sbs.pcoa$cproj[85:120, 2], 
+       pch = 21, cex = 0.6, bg = "darkorchid1", col = "darkorchid4")
+#text(sbs.pcoa$cproj[85:120, 1], sbs.pcoa$cproj[85:120, 2], cex = 0.4,
+#     labels = row.names(sbs.pcoa$cproj[85:120, ]), 
+#     col = "purple")
+# invasive species
+points(sbs.pcoa$cproj[121:135, 1], sbs.pcoa$cproj[121:135, 2], 
+       pch = 21, cex = 0.6, bg = "red1", col = "red3")
+#text(sbs.pcoa$cproj[121:135, 1], sbs.pcoa$cproj[121:135, 2], cex = 0.4,
+#     labels = row.names(sbs.pcoa$cproj[121:135, ]), 
+#     col = "red")
+# unknown nativity status species
+points(sbs.pcoa$cproj[135:143, 1], sbs.pcoa$cproj[135:143, 2], 
+       pch = 21, cex = 0.6, bg = "deepskyblue", col = "blue3")
+#text(sbs.pcoa$cproj[135:143, 1], sbs.pcoa$cproj[135:143, 2], cex = 0.4,
+#     labels = row.names(sbs.pcoa$cproj[135:143, ]), 
+#     col = "blue")
+
+# indicator species: low percent volunteer sites
+text(sbs.pcoa$cproj[c(12, 42, 22, 40), 1], sbs.pcoa$cproj[c(12, 42, 22, 40), 2], cex = 0.6,
+     labels = row.names(sbs.pcoa$cproj[c(12, 42, 22, 40), ]),
+     col = "darkgreen")
+# indicator species: high/low percent volunteer sites
+text(sbs.pcoa$cproj[107, 1], sbs.pcoa$cproj[107, 2], cex = 0.6,
+     labels = row.names(sbs.pcoa$cproj[107, ]),
+     col = "grey")
+# indicator species: high percent volunteer sites
+text(sbs.pcoa$cproj[99, 1], sbs.pcoa$cproj[99, 2], cex = 0.6,
+     labels = row.names(sbs.pcoa$cproj[99, ]),
+     col = "darkorange")
+
+```
+
+
+
+## INDICATOR SPECIES
+
+Indicator species:site richness
+```{r}
+# test hypothesis: there are relatively few species driving community differences
+
+# create "factors" vector
+richness <- rowSums(sbs)
+
+min(richness) + ((max(richness) - min(richness)) / 3)
+max(richness) - ((max(richness) - min(richness)) / 3)
+
+levels <- function(x){
+  if(x <= 45){
+    return("L")
+  } else if(x > 45 & x <= 70){
+    return("M")
+  } else{
+    return("H")
+  }
+}
+
+richness.level <- sapply(richness, levels)
+
+
+# run PERMANOVA with adonis function
+adonis(sbs ~ richness, method = "bray", permutations = 999)
+
+# identify indicator species
+indval <- multipatt(sbs, cluster = richness.level, func = "IndVal.g", control = how(nperm = 999))
+summary(indval)
+
+# calculate phi coefficient of association to examine habitat preference
+sbs.rel <- decostand(sbs, method = "total")
+phi <- multipatt(sbs, cluster = richness.level, func = "r.g", control = how(nperm = 999))
+summary(phi)
+```
+
+Indicator species: richness (no absent/single species)
+```{r}
+# create "factors" vector
+richness.ns <- rowSums(sbs.ns)
+
+min(richness.ns) + ((max(richness.ns) - min(richness.ns)) / 3)
+max(richness.ns) - ((max(richness.ns) - min(richness.ns)) / 3)
+
+levels.ns <- function(x){
+  if(x <= 37){
+    return("L")
+  } else if(x > 37 & x <= 58){
+    return("M")
+  } else{
+    return("H")
+  }
+}
+
+# make qualitative
+richness.level.ns <- sapply(richness.ns, levels.ns)
+
+# run PERMANOVA with adonis function
+adonis(sbs.ns ~ richness.ns, method = "bray", permutations = 999)
+
+# identify indicator species
+indval <- multipatt(sbs.ns, cluster = richness.level.ns, func = "IndVal.g", control = how(nperm = 999))
+summary(indval)
+
+# calculate phi coefficient of association to examine habitat preference
+sbs.rel <- decostand(sbs.ns, method = "total")
+phi <- multipatt(sbs.ns, cluster = richness.level.ns, func = "r.g", control = how(nperm = 999))
+summary(phi)
+```
+
+Indicator species: percent volunteer
+```{r}
+# Change volunteer species to be coded as "0"
+crawley.full$Planted.or.Volunteer[crawley.full$Planted.or.Volunteer == "2"] <- 0
+Planted.or.Volunteer <- crawley.full$Planted.or.Volunteer
+# Volunteer species only
+crawley.volunteer <- crawley.full[crawley.full$Planted.or.Volunteer == "0", ]
+# Remove non-incidence columns
+crawley.volunteer.sbs <- crawley.volunteer[, -c(1:3)]
+
+percent.volunteer <- colSums(crawley.volunteer.sbs) / colSums(crawley.full[, -c(1:3)])
+
+#determine range
+min(percent.volunteer) + ((max(percent.volunteer) - min(percent.volunteer)) / 3)
+max(percent.volunteer) - ((max(percent.volunteer) - min(percent.volunteer)) / 3)
+
+levels.vol <- function(x){
+  if(x <= 0.7539){
+    return("L")
+  } else if(x > 0.7539 & x <= 0.8499){
+    return("M")
+  } else{
+    return("H")
+  }
+}
+
+# make qualitative
+volunteer.level <- sapply(percent.volunteer, levels.vol)
+
+# run PERMANOVA with adonis function
+adonis(sbs ~ percent.volunteer, method = "bray", permutations = 999)
+
+# identify indicator species
+indval <- multipatt(sbs, cluster = volunteer.level, func = "IndVal.g", control = how(nperm = 999))
+summary(indval)
+
+# calculate phi coefficient of association to examine habitat preference
+sbs.rel <- decostand(sbs, method = "total")
+phi <- multipatt(sbs, cluster = volunteer.level, func = "r.g", control = how(nperm = 999))
+summary(phi)
+```
+
+Indicator species: percent volunteer (no single/absent species)
+```{r}
+# Change volunteer species to be coded as "0"
+cf.1 <- crawley.full
+cf.1$Planted.or.Volunteer[cf.1$Planted.or.Volunteer == "2"] <- 0
+# add sum column
+cf.1$sums <- rowSums(cf.1[ , 4:23])
+# filter to remove species found in 0 or 1 site
+cf.1.ns <- cf.1[which(cf.1$sums > 1), ]
+
+# Volunteer species only, remove non-incidence columns
+cf.1.ns.vol <- cf.1.ns[cf.1.ns$Planted.or.Volunteer == "0", 4:23]
+
+percent.volunteer.ns <- colSums(cf.1.ns.vol) / rowSums(sbs.ns)
+
+#determine range
+min(percent.volunteer.ns) + ((max(percent.volunteer.ns) - min(percent.volunteer.ns)) / 3)
+max(percent.volunteer.ns) - ((max(percent.volunteer.ns) - min(percent.volunteer.ns)) / 3)
+
+levels.vol.ns <- function(x){
+  if(x <= 0.7726){
+    return("L")
+  } else if(x > 0.7726 & x <= 0.8577){
+    return("M")
+  } else{
+    return("H")
+  }
+}
+
+# make qualitative
+volunteer.level.ns <- sapply(percent.volunteer.ns, levels.vol.ns)
+
+# run PERMANOVA with adonis function
+adonis(sbs.ns ~ percent.volunteer.ns, method = "bray", permutations = 999)
+
+# identify indicator species
+indval <- multipatt(sbs.ns, cluster = volunteer.level.ns, func = "IndVal.g", control = how(nperm = 999))
+summary(indval)
+
+# calculate phi coefficient of association to examine habitat preference
+sbs.rel <- decostand(sbs.ns, method = "total")
+phi <- multipatt(sbs.ns, cluster = volunteer.level.ns, func = "r.g", control = how(nperm = 999))
+summary(phi)
+```
+
+
+
+## Invasive species colonization by year
+
+```{r}
+time.since.planting <- crawley.site.factors$Years.between.planting.and.census  # this is an integer, for now
+
+crawley.full.2 <- crawley.full
+
+crawley.full.2 %>%
+  group_by(Nativity.Code) %>%
+  summarize(grpcount = n())
+
+crawley.full.2 <- crawley.full.2[-c(293:300), -c(24, 25)]
+
+sites <- c("Athenaeum", "Bauman.Park", "Center.for.Inquiry", "Chinqpin.Oak.Park", 
+"Community.Caring...Sharing", "Cottage.Home", "Englewood", "Fletcher.Gateway", 
+"Fletcher.Park", "Historic.Meridian.Park", "Jonathan.Jennings", 
+"Lynhurst", "Merrill.Street", "Paramount.Charter", "Purpose.Park", 
+"Ransom.Place", "Skiles.Test", "University.Park", "Westminster", 
+"Willard.Park")
+
+# number of invasive species per site
+crawley.invasives <- crawley.full.2[crawley.full.2$Nativity.Code == "3", ]
+n.invasives <- colSums(crawley.invasives[, 4:ncol(crawley.invasives)])
+
+# make df
+df <- data.frame(site = sites, n.inv = n.invasives)
+  
+# Get list of invasive species in each site
+for (i in 4:ncol(crawley.invasives)) {
+  species <- crawley.invasives[crawley.invasives[, i] == 1, ]$Species
+  site <- colnames(crawley.invasives)[i] 
+  print(data.frame(site, species))
+}
+
+```
